@@ -33,7 +33,7 @@ sub init()
 
     reg = CreateObject("roRegistrySection", "FightTimerTV")
     savedAddr = reg.Read("serverAddress")
-    if savedAddr <> invalid and Len(savedAddr) > 0
+    if savedAddr <> invalid and isValidAddress(savedAddr)
         startPolling(savedAddr)
     else
         showIpEntry()
@@ -53,6 +53,7 @@ sub onInitialFocusTimer()
 end sub
 
 sub startPolling(addr as String)
+    print "[MainScene] startPolling addr="; addr
     m.serverAddress = addr
     m.failCount = 0
     m.prevState = invalid
@@ -62,34 +63,40 @@ sub startPolling(addr as String)
     m.roundIndicator.text = "Aguardando o celular…"
 end sub
 
-' ═══════════════════ Teclado de IP:porta ═══════════════════
+' ═══════════════ Endereço do celular: 4 spinners + porta fixa 8080 ═══════════════
+' Sem teclado nenhum: cima/baixo sobe/desce o valor do campo atual (0 a
+' 255, com wrap), esquerda/direita troca de campo, OK confirma o
+' endereço inteiro. Muito mais direto num controle de TV do que digitar
+' caractere por caractere — e evita de vez bugs de digitação de "."/":"
+' que apareceram nas versões anteriores. Porta sempre 8080 (fixa, igual
+' ao SERVER_PORT do app RN), nunca editável.
 
 sub setupIpEntry()
     m.ipEntryGroup = m.top.findNode("ipEntryGroup")
-    m.ipDisplay = m.top.findNode("ipDisplay")
+    m.octetLabels = [
+        m.top.findNode("octet0"),
+        m.top.findNode("octet1"),
+        m.top.findNode("octet2"),
+        m.top.findNode("octet3")
+    ]
 
-    ' Ordem = ordem visual (esquerda->direita, cima->baixo); cima/baixo
-    ' navegam por este array linearmente (sem precisar saber linha/coluna).
-    labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", ":", "APAGAR", "CONFIRMAR"]
-    m.ipKeys = []
-    m.ipKeyBgs = []
-    for i = 0 to labels.count() - 1
-        node = m.top.findNode("key_" + i.toStr())
-        m.ipKeys.push(node)
-        m.ipKeyBgs.push(m.top.findNode("key_" + i.toStr() + "_bg"))
-    end for
-
-    m.ipKeyIndex = 0
-    m.ipText = ""
+    ' Palpite de rede doméstica típica (192.168.0.x) — só o último
+    ' número costuma precisar mudar de dispositivo pra dispositivo.
+    m.octetIndex = 3
+    m.octets = [192, 168, 0, 1]
+    ' Precisa existir desde já: quando há endereço salvo, startPolling()
+    ' roda direto no init() sem nunca passar por showIpEntry(), e sem
+    ' isso m.ipEntryVisible fica Invalid — "not Invalid" quebra o app
+    ' (confirmado em teste real: crash silencioso no primeiro poll com
+    ' falha).
+    m.ipEntryVisible = false
 end sub
 
 sub showIpEntry()
     m.ipEntryVisible = true
     m.ipEntryGroup.visible = true
-    m.ipKeyIndex = 0
-    m.ipText = ""
-    m.ipDisplay.text = ""
-    highlightIpKey()
+    m.octetIndex = 3
+    renderOctets()
 end sub
 
 sub hideIpEntry()
@@ -97,78 +104,69 @@ sub hideIpEntry()
     m.ipEntryGroup.visible = false
 end sub
 
-sub highlightIpKey()
-    for i = 0 to m.ipKeyBgs.count() - 1
-        if i = m.ipKeyIndex
-            m.ipKeyBgs[i].color = "0xC8F400FF"
-            m.ipKeys[i].color = "0x1A1A1AFF"
+' Campo ativo fica amarelo; os outros, branco — dá pra ver claramente
+' qual campo cima/baixo vai alterar.
+sub renderOctets()
+    for i = 0 to 3
+        m.octetLabels[i].text = intStr(m.octets[i])
+        if i = m.octetIndex
+            m.octetLabels[i].color = "0xC8F400FF"
         else
-            m.ipKeyBgs[i].color = "0x2A2A2AFF"
-            m.ipKeys[i].color = "0xFFFFFFFF"
+            m.octetLabels[i].color = "0xFFFFFFFF"
         end if
     end for
 end sub
 
-sub moveIpKey(delta as Integer)
-    count = m.ipKeys.count()
-    m.ipKeyIndex = (m.ipKeyIndex + delta + count) mod count
-    highlightIpKey()
+sub moveOctetField(delta as Integer)
+    m.octetIndex = (m.octetIndex + delta + 4) mod 4
+    renderOctets()
 end sub
 
-sub pressIpKey()
-    label = m.ipKeys[m.ipKeyIndex].text
-    if label = "APAGAR"
-        if Len(m.ipText) > 0
-            m.ipText = Left(m.ipText, Len(m.ipText) - 1)
-        end if
-    else if label = "CONFIRMAR"
-        submitIpEntry()
-        return
-    else
-        if Len(m.ipText) < 30 then m.ipText = m.ipText + label
-    end if
-    m.ipDisplay.text = m.ipText
+sub adjustOctetValue(delta as Integer)
+    v = m.octets[m.octetIndex] + delta
+    if v < 0 then v = 255
+    if v > 255 then v = 0
+    m.octets[m.octetIndex] = v
+    renderOctets()
 end sub
 
 sub submitIpEntry()
-    if Len(m.ipText) = 0 then return
+    addr = intStr(m.octets[0]) + "." + intStr(m.octets[1]) + "." + intStr(m.octets[2]) + "." + intStr(m.octets[3]) + ":8080"
     reg = CreateObject("roRegistrySection", "FightTimerTV")
-    reg.Write("serverAddress", m.ipText)
+    reg.Write("serverAddress", addr)
     reg.Flush()
     hideIpEntry()
-    startPolling(m.ipText)
+    startPolling(addr)
 end sub
 
-' Botão "*" (info) do controle reabre o teclado, pra trocar de celular
-' sem precisar reinstalar o canal.
+' Botão "*" (info) do controle reabre a configuração, pra trocar de
+' celular sem precisar reinstalar o canal. Além disso, se ficar muitos
+' polls seguidos falhando (endereço errado, celular fora do ar), reabre
+' sozinho — o usuário não fica preso numa tela sem reação nenhuma.
 function onKeyEvent(key as String, press as Boolean) as Boolean
     if not press then return false
 
     if m.ipEntryVisible
         if key = "up"
-            moveIpKey(-1)
+            adjustOctetValue(1)
             return true
         else if key = "down"
-            moveIpKey(1)
+            adjustOctetValue(-1)
             return true
         else if key = "left"
-            moveIpKey(-1)
+            moveOctetField(-1)
             return true
         else if key = "right"
-            moveIpKey(1)
+            moveOctetField(1)
             return true
         else if key = "OK"
-            pressIpKey()
-            return true
-        else if key = "back" and Len(m.ipText) > 0
-            m.ipText = Left(m.ipText, Len(m.ipText) - 1)
-            m.ipDisplay.text = m.ipText
+            submitIpEntry()
             return true
         end if
         return false
     end if
 
-    if key = "info" and not m.ipEntryVisible
+    if key = "info"
         showIpEntry()
         return true
     end if
@@ -177,12 +175,19 @@ end function
 
 sub onPollResponse()
     body = m.pollTask.response
+    print "[MainScene] onPollResponse body="; body
     if body = invalid or body = "" then return
 
     if body = "__FAIL__"
         m.failCount = m.failCount + 1
         if m.failCount >= 3
             m.offlineBanner.visible = true
+        end if
+        ' ~15s de falhas seguidas (endereço errado/celular fora do ar):
+        ' reabre a tela de configuração sozinho, em vez de deixar o
+        ' usuário preso numa tela sem nenhuma reação.
+        if m.failCount >= 15 and not m.ipEntryVisible
+            showIpEntry()
         end if
         return
     end if
@@ -289,4 +294,25 @@ function pad(n as Integer) as String
     s = intStr(n)
     if Len(s) < 2 then s = "0" + s
     return s
+end function
+
+' Confere se o endereço salvo no registro tem o formato
+' "N.N.N.N:8080" antes de confiar nele — evita ficar preso repetindo
+' pra sempre um valor corrompido de uma sessão anterior (aconteceu de
+' verdade em teste: um endereço com ":" no lugar de "." travava o app
+' sem nenhuma forma de sair, até esse crash ser corrigido).
+function isValidAddress(addr as String) as Boolean
+    parts = addr.Split(":")
+    if parts.count() <> 2 then return false
+    if parts[1] <> "8080" then return false
+    octets = parts[0].Split(".")
+    if octets.count() <> 4 then return false
+    for each o in octets
+        if Len(o) = 0 or Len(o) > 3 then return false
+        for i = 0 to Len(o) - 1
+            c = Mid(o, i + 1, 1)
+            if c < "0" or c > "9" then return false
+        end for
+    end for
+    return true
 end function

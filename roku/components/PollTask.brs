@@ -7,10 +7,13 @@ sub init()
 end sub
 
 sub pollLoop()
+    print "[PollTask] pollLoop start, uri="; m.top.uri
     POLL_MS = 300
+    n = 0
 
     while true
         if m.top.control = "STOP"
+            print "[PollTask] STOP recebido, saindo"
             return
         end if
 
@@ -25,6 +28,11 @@ sub pollLoop()
             ' a thread própria da Task, a UI (thread de render) não é
             ' afetada por essa espera.
             body = xfer.GetToString()
+
+            if n mod 10 = 0
+                print "[PollTask] poll #"; n; " uri=["; uri; "] body="; body
+            end if
+            n = n + 1
 
             if body <> invalid and Len(body) > 0
                 m.top.response = body

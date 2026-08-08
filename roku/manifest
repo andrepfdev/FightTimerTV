@@ -1,7 +1,7 @@
 title=Fight Timer TV
 major_version=1
 minor_version=0
-build_version=1
+build_version=5
 
 ; Usa coordenadas 1920x1080 — mais simples de mapear em cima do layout
 ; já desenhado para a página HTML da TV (src/receiver/receiverHtml.ts).

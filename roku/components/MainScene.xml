@@ -51,55 +51,45 @@
                    width="1920" horizAlign="center" color="0x666666FF" />
         </Group>
 
-        <!-- Teclado de configuração de IP:porta -->
+        <!-- Configuração de endereço: 4 "spinners" numéricos (0-255),
+             sem teclado nenhum — cima/baixo sobe/desce o valor do campo
+             atual, esquerda/direita troca de campo, OK confirma. Porta
+             sempre 8080 (fixa, igual ao SERVER_PORT do app RN), nunca
+             editável. Primeiros 3 números já vêm com "192.168.0" —
+             palpite de rede doméstica típica (bateu com Roku e celular
+             nos testes) — só o último costuma precisar mudar. -->
         <Group id="ipEntryGroup" visible="false">
             <Rectangle id="ipEntryBg" color="0x1A1A1AFF" width="1920" height="1080" />
             <Label id="ipEntryTitle" text="Digite o endereço mostrado no celular"
                    translation="[0, 120]" width="1920" horizAlign="center"
                    color="0xFFFFFFFF" />
-            <Label id="ipEntryHint" text="Exemplo: 192.168.0.42:8080 — use as setas e OK"
+            <Label id="ipEntryHint"
+                   text="Esquerda/Direita trocam de campo — Cima/Baixo mudam o número — OK confirma tudo"
                    translation="[0, 190]" width="1920" horizAlign="center"
                    color="0x666666FF" />
-            <Rectangle id="ipDisplayBg" translation="[660, 250]" width="600" height="90"
+
+            <Rectangle id="ipDisplayBg" translation="[560, 350]" width="800" height="140"
                        color="0x2A2A2AFF" />
-            <Label id="ipDisplay" text="" translation="[660, 250]" width="600" height="90"
-                   horizAlign="center" vertAlign="center" color="0xC8F400FF" />
+            <Label id="octet0" text="192" translation="[590, 350]" width="130" height="140"
+                   horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+            <Label id="dot0" text="." translation="[720, 350]" width="30" height="140"
+                   horizAlign="center" vertAlign="center" color="0x666666FF" />
+            <Label id="octet1" text="168" translation="[750, 350]" width="130" height="140"
+                   horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+            <Label id="dot1" text="." translation="[880, 350]" width="30" height="140"
+                   horizAlign="center" vertAlign="center" color="0x666666FF" />
+            <Label id="octet2" text="0" translation="[910, 350]" width="130" height="140"
+                   horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+            <Label id="dot2" text="." translation="[1040, 350]" width="30" height="140"
+                   horizAlign="center" vertAlign="center" color="0x666666FF" />
+            <Label id="octet3" text="1" translation="[1070, 350]" width="130" height="140"
+                   horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+            <Label id="colonPort" text=":8080" translation="[1200, 350]" width="150" height="140"
+                   vertAlign="center" color="0x666666FF" />
 
-            <!-- Teclado numérico: navegação linear (cima/baixo) entre as
-                 teclas, sem precisar de foco nativo por nó — a cor de
-                 cada tecla é pintada manualmente pelo código. -->
-            <Rectangle id="key_0_bg" translation="[660,380]" width="160" height="100" color="0x2A2A2AFF" />
-            <Label id="key_0" text="1" translation="[660,380]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
-            <Rectangle id="key_1_bg" translation="[840,380]" width="160" height="100" color="0x2A2A2AFF" />
-            <Label id="key_1" text="2" translation="[840,380]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
-            <Rectangle id="key_2_bg" translation="[1020,380]" width="160" height="100" color="0x2A2A2AFF" />
-            <Label id="key_2" text="3" translation="[1020,380]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
-
-            <Rectangle id="key_3_bg" translation="[660,500]" width="160" height="100" color="0x2A2A2AFF" />
-            <Label id="key_3" text="4" translation="[660,500]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
-            <Rectangle id="key_4_bg" translation="[840,500]" width="160" height="100" color="0x2A2A2AFF" />
-            <Label id="key_4" text="5" translation="[840,500]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
-            <Rectangle id="key_5_bg" translation="[1020,500]" width="160" height="100" color="0x2A2A2AFF" />
-            <Label id="key_5" text="6" translation="[1020,500]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
-
-            <Rectangle id="key_6_bg" translation="[660,620]" width="160" height="100" color="0x2A2A2AFF" />
-            <Label id="key_6" text="7" translation="[660,620]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
-            <Rectangle id="key_7_bg" translation="[840,620]" width="160" height="100" color="0x2A2A2AFF" />
-            <Label id="key_7" text="8" translation="[840,620]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
-            <Rectangle id="key_8_bg" translation="[1020,620]" width="160" height="100" color="0x2A2A2AFF" />
-            <Label id="key_8" text="9" translation="[1020,620]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
-
-            <Rectangle id="key_9_bg" translation="[660,740]" width="160" height="100" color="0x2A2A2AFF" />
-            <Label id="key_9" text="." translation="[660,740]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
-            <Rectangle id="key_10_bg" translation="[840,740]" width="160" height="100" color="0x2A2A2AFF" />
-            <Label id="key_10" text="0" translation="[840,740]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
-            <Rectangle id="key_11_bg" translation="[1020,740]" width="160" height="100" color="0x2A2A2AFF" />
-            <Label id="key_11" text=":" translation="[1020,740]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
-
-            <Rectangle id="key_12_bg" translation="[660,860]" width="250" height="100" color="0x2A2A2AFF" />
-            <Label id="key_12" text="APAGAR" translation="[660,860]" width="250" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
-            <Rectangle id="key_13_bg" translation="[930,860]" width="250" height="100" color="0x2A2A2AFF" />
-            <Label id="key_13" text="CONFIRMAR" translation="[930,860]" width="250" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+            <Label id="confirmHint" text="Aperte OK pra confirmar este endereço"
+                   translation="[0, 540]" width="1920" horizAlign="center"
+                   color="0xC8F400FF" />
         </Group>
 
         <PollTask id="pollTask" />
