@@ -1,16 +1,14 @@
 /**
- * Sample React Native App
- * https://github.com/facebook/react-native
+ * Fight Timer TV
+ * Cronômetro que transmite o tempo para uma Smart TV via HTTP local
+ * (sem login, sem persistência — tudo em memória).
  *
  * @format
  */
 
-import { NewAppScreen } from '@react-native/new-app-screen';
 import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import TimerScreen from './src/screens/TimerScreen';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -18,21 +16,10 @@ function App() {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
+      <View style={styles.container}>
+        <TimerScreen />
+      </View>
     </SafeAreaProvider>
-  );
-}
-
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
-
-  return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
   );
 }
 

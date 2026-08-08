@@ -1,97 +1,130 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Fight Timer TV
 
-# Getting Started
+Cronômetro em React Native (Android/iOS) que transmite o tempo em tempo real
+para **qualquer Smart TV com navegador** (Roku via canal de navegador, Android
+TV/Google TV, Samsung Tizen, LG webOS, Fire TV) através de um **servidor HTTP
+embutido no próprio celular** — sem login, sem conta, sem nada salvo em disco
+(todo o estado do timer vive em memória enquanto o app está aberto).
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Por que essa arquitetura (e não Google Cast)?
 
-## Step 1: Start Metro
+O Google Cast SDK só funciona em dispositivos "Cast-receiver" (Chromecast,
+Android TV/Google TV, alguns Samsung/LG recentes). **A Roku não é um
+dispositivo Cast-receiver** — instalar um navegador da Roku Store não muda
+isso, o protocolo Google Cast simplesmente não roda lá. Por isso a solução
+aqui é 100% baseada em HTTP: o celular sobe um mini servidor web, a TV abre
+essa página no navegador dela e fica dando polling no estado do timer a cada
+~300ms. Isso funciona em qualquer TV com um navegador instalado, incluindo os
+navegadores "sideloaded" disponíveis na Roku Channel Store.
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Como funciona
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+1. O app RN inicia um servidor HTTP na porta `8080` assim que abre
+   ([src/server/timerServer.ts](src/server/timerServer.ts)).
+2. `GET /` retorna a página estática da TV
+   ([src/receiver/receiverHtml.ts](src/receiver/receiverHtml.ts)).
+3. `GET /state` retorna o estado atual do timer em JSON:
+   `{ seconds, totalTime, running, paused, phase, currentRound, totalRounds, soundOn, formatted }`,
+   onde `phase` é `idle | round | rest | done`.
+4. A página da TV faz `fetch('/state')` a cada 300ms e atualiza a tela —
+   não é WebSocket, é polling HTTP simples (mais robusto em navegadores de
+   TV com engines mais fracas, como os da Roku).
+5. A tela do app ([src/screens/TimerScreen.tsx](src/screens/TimerScreen.tsx))
+   mostra o IP local + um QR code apontando para `http://<IP>:8080`.
 
-```sh
-# Using npm
-npm start
+### Layout e som idênticos ao `ct-timer` original
 
-# OR using Yarn
-yarn start
+O visual da TV ([src/receiver/receiverHtml.ts](src/receiver/receiverHtml.ts))
+foi copiado quase 1:1 da tela "run" + overlay "FIM" do `index.html` do
+projeto `ct-timer` (fundo escuro, fonte Bebas Neue, número gigante em
+amarelo, indicador de round, barra de progresso, cor cinza no intervalo e
+vermelha nos últimos 10s). A fonte Bebas Neue vai embutida em base64
+([src/receiver/bebasNeueFont.ts](src/receiver/bebasNeueFont.ts), licença
+SIL OFL em [src/receiver/assets/OFL.txt](src/receiver/assets/OFL.txt)) —
+assim a página não depende de acesso à internet nem de uma rota extra no
+servidor.
+
+O sino metálico (sintetizado via Web Audio API, mesmo código do
+`index.html`) toca **na própria TV**, não no celular — faz mais sentido
+numa academia, já que é a caixa de som da TV que todo mundo ouve. A página
+da TV detecta as transições de estado (início de round, aviso aos 10s, fim
+de round, fim do treino) comparando cada resposta de `/state` com a
+anterior, e tem um botão de mudo próprio (local à TV, independente do
+celular).
+
+## Rodando o projeto
+
+```bash
+npm install
+# Android
+npx react-native run-android
+# iOS (precisa rodar `cd ios && pod install` antes, em um Mac)
+cd ios && pod install && cd ..
+npx react-native run-ios
 ```
 
-## Step 2: Build and run your app
+> Use um **dispositivo físico** (não emulador/simulador) — o IP de Wi-Fi real
+> só existe em um aparelho conectado à mesma rede da TV.
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+## Permissões nativas já configuradas
 
-### Android
+### Android — [android/app/src/main/AndroidManifest.xml](android/app/src/main/AndroidManifest.xml)
+- `INTERNET` — já vinha no template, necessária para o servidor HTTP.
+- `ACCESS_WIFI_STATE` / `ACCESS_NETWORK_STATE` — para ler o IP/SSID do Wi-Fi
+  (usado para montar a URL e o QR code).
+- O manifest usa `android:usesCleartextTraffic="${usesCleartextTraffic}"`
+  (placeholder do template RN, controlado no `build.gradle`). Como o servidor
+  é HTTP puro (sem HTTPS — não faz sentido gerar certificado para um IP local
+  dinâmico), **confirme que esse placeholder resolve para `true`** também em
+  builds de release, senão o Android bloqueia a conexão da TV.
 
-```sh
-# Using npm
-npm run android
+### iOS — [ios/FightTimerTV/Info.plist](ios/FightTimerTV/Info.plist)
+- `NSLocalNetworkUsageDescription` — obrigatório desde iOS 14 para qualquer
+  app que rode um servidor acessível por outros dispositivos na rede local;
+  sem isso o iOS nem deixa a TV conectar (a Apple mostra um alerta de
+  permissão de rede local na primeira execução).
+- `NSBonjourServices` com `_http._tcp` — o motor HTTP embutido usa Bonjour
+  internamente no iOS (GCDWebServer); sem declarar o serviço o alerta de
+  permissão às vezes nem aparece.
+- `NSAllowsLocalNetworking` já vinha `true` no template — necessário para o
+  próprio app falar HTTP (não HTTPS) com a rede local.
 
-# OR using Yarn
-yarn android
-```
+## Testando na TV
 
-### iOS
+### Roku (Streaming Stick)
+A Roku não tem navegador nativo, mas dá pra instalar um pela Channel Store:
+1. Na Roku, vá em **Streaming Channels → Search Channels** e procure por um
+   navegador (ex.: o canal "Web Browser" ou o que você mencionou como
+   "Cast"/similares — a disponibilidade varia por região).
+2. Abra o navegador instalado e digite manualmente a URL mostrada no app
+   (ex.: `http://192.168.0.42:8080`) — a maioria desses navegadores de Roku
+   não lê QR code pela câmera da TV, então a URL de texto é o caminho mais
+   confiável.
+3. Deixe a página aberta em tela cheia; ela vai reconectar sozinha (mensagem
+   "Sem conexão com o celular") se o app fechar e reabrir.
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+### Android TV / Google TV
+Abra o Chrome (ou o navegador padrão), aponte para a mesma URL. Você também
+pode escanear o QR code se o navegador tiver acesso à câmera de um controle
+com câmera, ou digitar manualmente.
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+### Samsung (Tizen) / LG (webOS)
+Ambas têm um app de navegador nativo ("Internet"). Abra e digite a URL do
+celular. Como essas TVs normalmente são mais recentes, o navegador tende a
+lidar bem com `fetch` e CSS moderno.
 
-```sh
-bundle install
-```
+### Fire TV
+Instale o navegador "Silk" (ou "Firefox") pela Amazon Appstore e aponte para
+a mesma URL.
 
-Then, and every time you update your native dependencies, run:
+## Troubleshooting
 
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
-```
-
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+- **TV não conecta / timeout**: celular e TV precisam estar na **mesma rede
+  Wi-Fi** (mesmo SSID). Redes de convidado ("Guest") costumam ter *client
+  isolation* ativado, que bloqueia dispositivo-a-dispositivo — nesse caso
+  use a rede principal.
+- **iOS pediu permissão de rede local e eu neguei sem querer**: vá em
+  Ajustes → Privacidade e Segurança → Rede Local e reative para o app.
+- **Firewall do roteador**: alguns roteadores com "AP isolation" bloqueiam
+  tráfego entre dispositivos Wi-Fi mesmo na mesma rede — sintoma idêntico ao
+  de rede de convidado.
