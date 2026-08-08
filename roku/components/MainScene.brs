@@ -263,10 +263,12 @@ sub maybePlayBell(seconds as Integer, totalTime as Integer, phase as String, run
     warning = (phase = "round" and running and seconds = 10 and prev.seconds <> 10)
     roundEnded = (prev.phase = "round" and phase <> "round" and phase <> "done")
 
+    ' Sons distintos pra início e fim (igual ao playBell(1) vs playBell(3)
+    ' do receiverHtml.ts original: início é 1 batida, fim é 3 batidas).
     if enteredDone or roundEnded
-        playSound("pkg:/audio/bell.wav")
+        playSound("pkg:/audio/bell_end.mp3")
     else if startedRound
-        playSound("pkg:/audio/bell.wav")
+        playSound("pkg:/audio/bell_start.wav")
     else if warning
         playSound("pkg:/audio/tick.wav")
     end if
