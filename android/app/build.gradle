@@ -84,6 +84,10 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        // O app expõe um servidor HTTP puro (sem TLS) na rede local por
+        // design (ver CLAUDE.md) — precisa de cleartext liberado ou a TV
+        // não consegue nem abrir GET /.
+        manifestPlaceholders = [usesCleartextTraffic: "true"]
     }
     signingConfigs {
         debug {

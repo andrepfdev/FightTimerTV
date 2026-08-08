@@ -73,10 +73,11 @@ npx react-native run-ios
 - `ACCESS_WIFI_STATE` / `ACCESS_NETWORK_STATE` — para ler o IP/SSID do Wi-Fi
   (usado para montar a URL e o QR code).
 - O manifest usa `android:usesCleartextTraffic="${usesCleartextTraffic}"`
-  (placeholder do template RN, controlado no `build.gradle`). Como o servidor
-  é HTTP puro (sem HTTPS — não faz sentido gerar certificado para um IP local
-  dinâmico), **confirme que esse placeholder resolve para `true`** também em
-  builds de release, senão o Android bloqueia a conexão da TV.
+  (placeholder do template RN), resolvido para `true` em
+  [android/app/build.gradle](android/app/build.gradle) via
+  `manifestPlaceholders`. Como o servidor é HTTP puro (sem HTTPS — não faz
+  sentido gerar certificado para um IP local dinâmico), isso vale tanto para
+  debug quanto para release.
 
 ### iOS — [ios/FightTimerTV/Info.plist](ios/FightTimerTV/Info.plist)
 - `NSLocalNetworkUsageDescription` — obrigatório desde iOS 14 para qualquer
@@ -88,6 +89,19 @@ npx react-native run-ios
   permissão às vezes nem aparece.
 - `NSAllowsLocalNetworking` já vinha `true` no template — necessário para o
   próprio app falar HTTP (não HTTPS) com a rede local.
+
+## Limitação conhecida: app precisa ficar em primeiro plano
+
+O app usa `useKeepAwake` para impedir que a tela do celular apague sozinha,
+mas isso **não substitui** um foreground service nativo: se o usuário
+minimizar o app manualmente (trocar de app, apertar Home), o React Native
+suspende o JS e o tick do cronômetro para — o servidor HTTP também para de
+responder, e a TV cai em "Sem conexão com o celular". **Não minimize o app
+nem troque de aplicativo durante a luta.** Se isso acontecer, o app mostra um
+aviso ao voltar ao primeiro plano avisando que o tempo pode ter ficado
+impreciso; não há correção automática. Adicionar um foreground service
+nativo fica como possível próximo passo caso o teste em dispositivo real
+mostre que isso é um problema frequente.
 
 ## Testando na TV
 

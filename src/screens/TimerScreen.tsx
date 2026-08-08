@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AppState,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -7,9 +8,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useKeepAwake } from '@sayem314/react-native-keep-awake';
 import { NetworkInfo } from 'react-native-network-info';
 import QRCode from 'react-native-qrcode-svg';
 import { TimerServer, SERVER_PORT, Phase } from '../server/timerServer';
+import { advancePhase as computeAdvancePhase } from './timerEngine';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
@@ -46,11 +49,36 @@ export default function TimerScreen() {
   const [timeLeft, setTimeLeft] = useState(0);
   const [totalTime, setTotalTime] = useState(0);
 
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [backgroundWarning, setBackgroundWarning] = useState(false);
+
+  // Impede a tela de apagar sozinha durante o uso — o timer só avança de
+  // fato enquanto o app está em foreground, então apagar a tela derrubaria
+  // o tick e a TV perderia a conexão (ver CLAUDE.md).
+  useKeepAwake();
+
   useEffect(() => {
-    server.start(SERVER_PORT);
+    setServerError(server.start(SERVER_PORT));
     NetworkInfo.getIPV4Address().then(setIp).catch(() => setIp(null));
     return () => server.stop();
   }, [server]);
+
+  // Não há foreground service nativo: se o app for minimizado mesmo assim
+  // (ex. usuário troca de app), o tick para enquanto em background. Ao
+  // voltar, avisamos que o tempo pode ter ficado impreciso em vez de
+  // fingir que nada aconteceu.
+  useEffect(() => {
+    let wasBackground = false;
+    const sub = AppState.addEventListener('change', nextState => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        wasBackground = true;
+      } else if (nextState === 'active' && wasBackground) {
+        wasBackground = false;
+        setBackgroundWarning(true);
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   // Espelha o estado local no servidor a cada mudança relevante.
   useEffect(() => {
@@ -86,26 +114,21 @@ export default function TimerScreen() {
   }, [screen, paused, done, isRest, currentRound]);
 
   function advancePhase() {
-    if (!isRest) {
-      if (currentRound >= totalRounds) {
-        setDone(true);
-        return;
-      }
-      if (breakTimeSec > 0) {
-        setIsRest(true);
-        setTimeLeft(breakTimeSec);
-        setTotalTime(breakTimeSec);
-      } else {
-        setCurrentRound(r => r + 1);
-        setTimeLeft(roundTimeSec);
-        setTotalTime(roundTimeSec);
-      }
-    } else {
-      setCurrentRound(r => r + 1);
-      setIsRest(false);
-      setTimeLeft(roundTimeSec);
-      setTotalTime(roundTimeSec);
+    const result = computeAdvancePhase({
+      currentRound,
+      totalRounds,
+      isRest,
+      roundTimeSec,
+      breakTimeSec,
+    });
+    if (result.done) {
+      setDone(true);
+      return;
     }
+    setCurrentRound(result.currentRound);
+    setIsRest(result.isRest);
+    setTimeLeft(result.timeLeft);
+    setTotalTime(result.totalTime);
   }
 
   const startTimer = () => {
@@ -225,6 +248,21 @@ export default function TimerScreen() {
             </View>
           )}
           <Text style={styles.tvHint}>Celular e TV precisam estar na mesma rede Wi-Fi.</Text>
+          <Text style={styles.tvHint}>
+            Não minimize o app nem deixe a tela apagar durante a luta — o
+            cronômetro só avança enquanto o app está em primeiro plano.
+          </Text>
+          {serverError && (
+            <Text style={styles.errorText}>{serverError}</Text>
+          )}
+          {backgroundWarning && (
+            <TouchableOpacity onPress={() => setBackgroundWarning(false)}>
+              <Text style={styles.warningText}>
+                O app ficou em segundo plano — o tempo pode ter ficado
+                impreciso. Toque para dispensar.
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -297,4 +335,6 @@ const styles = StyleSheet.create({
   tvUrl: { color: YELLOW, fontSize: 16, marginTop: 4 },
   qrWrap: { marginTop: 16, padding: 12, backgroundColor: DARK },
   tvHint: { color: '#555', fontSize: 11, marginTop: 12, textAlign: 'center' },
+  errorText: { color: WARNING, fontSize: 12, marginTop: 12, textAlign: 'center' },
+  warningText: { color: YELLOW, fontSize: 12, marginTop: 12, textAlign: 'center' },
 });

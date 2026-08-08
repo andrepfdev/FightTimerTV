@@ -46,8 +46,12 @@ export class TimerServer {
     formatted: '00:00',
   };
 
-  start(port: number = SERVER_PORT) {
-    if (this.server) return;
+  /**
+   * @returns `null` se subiu com sucesso, ou uma mensagem de erro para
+   * exibir ao usuário (ex.: porta já em uso).
+   */
+  start(port: number = SERVER_PORT): string | null {
+    if (this.server) return null;
 
     const server = new BridgeServer('fight_timer_tv', false);
 
@@ -59,8 +63,15 @@ export class TimerServer {
       res.json(this.state);
     });
 
-    server.listen(port);
+    try {
+      server.listen(port);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return `Não foi possível iniciar o servidor na porta ${port}: ${message}`;
+    }
+
     this.server = server;
+    return null;
   }
 
   stop() {
