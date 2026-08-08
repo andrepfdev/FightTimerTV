@@ -111,6 +111,16 @@ android {
     }
 }
 
+// react-native-http-bridge-refurbished declara uma dependência não usada
+// (nenhum código Java/Kotlin do módulo referencia GCM) em
+// com.google.android.gms:play-services-gcm:16.1.0, que arrasta a
+// biblioteca legada com.android.support:support-v4:26.1.0 junto — e ela
+// colide (classes duplicadas) com o androidx.core moderno usado pelo
+// resto do app. Excluir globalmente é seguro: nada aqui usa GCM/push.
+configurations.all {
+    exclude group: 'com.google.android.gms', module: 'play-services-gcm'
+}
+
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
