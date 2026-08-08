@@ -61,6 +61,8 @@ App.tsx                        — entry point, monta <TimerScreen/>
 src/screens/TimerScreen.tsx    — motor de rounds/intervalo (setup + run,
                                   idêntico em comportamento ao index.html
                                   original), IP local + QR code
+src/screens/timerEngine.ts     — advancePhase() extraído como função pura
+                                  testável (ver src/screens/timerEngine.test.ts)
 src/server/timerServer.ts      — servidor HTTP embutido (porta 8080),
                                   GET / (página da TV) e GET /state (JSON:
                                   seconds/totalTime/phase/currentRound/…)
@@ -71,6 +73,9 @@ src/receiver/receiverHtml.ts   — HTML/CSS/JS estático servido para a TV:
 src/receiver/bebasNeueFont.ts  — fonte Bebas Neue embutida em base64
                                   (copiada de ct-timer/fonts/)
 android/…, ios/…               — permissões já configuradas (ver README.md)
+roku/                          — canal Roku nativo (BrightScript/SceneGraph),
+                                  ver 7ª decisão abaixo e a seção "Canal Roku
+                                  nativo" do README.md
 ```
 
 ## 6ª decisão: layout copiado do `ct-timer` original
@@ -87,17 +92,50 @@ revertida sem querer numa sessão futura. O motor de rounds/intervalo do
 (`beginPhase`/`tick` do index.html), que antes era só uma contagem
 regressiva simples.
 
+## 7ª decisão: canal Roku nativo além (não em vez) da página HTML
+
+O usuário testou em dispositivo real e as duas TVs dele são Roku — que
+não é Cast-receiver (decisão #1) e depende de um navegador "sideloaded"
+de terceiros pra abrir `receiverHtml.ts`, o que na prática se mostrou um
+obstáculo (nenhum navegador built-in). Em vez de insistir num navegador
+de terceiros frágil, construímos um **canal Roku nativo em BrightScript/
+SceneGraph** (`roku/`) que fala HTTP direto com `GET /state`, sem
+navegador nenhum.
+
+**Importante: isso não substitui a página HTML — as duas coisas
+convivem.** `GET /` continua servindo `receiverHtml.ts` normalmente, e
+continua sendo o caminho pra **qualquer outra Smart TV com navegador**
+(Samsung Tizen, LG webOS, Android TV/Google TV, Fire TV) — só a Roku
+ganhou um canal dedicado porque é o caso onde o navegador não é uma
+opção confiável. Ver seção "Canal Roku nativo" do README.md para
+estrutura, instalação (sideload/dev mode) e o caminho de distribuição
+"final" via Beta App do Roku Developer Dashboard, sem depender de
+Developer Mode permanente nas TVs.
+
+Detalhes técnicos que valem registrar: como SceneGraph não tem Web Audio
+API, o sino/aviso sonoro do canal Roku são tons sintetizados via
+`ffmpeg` (`roku/audio/bell.wav`/`tick.wav`) — não é o mesmo sintetizador
+metálico do `receiverHtml.ts`, é um placeholder. E como a Roku não tem
+câmera pra ler QR code, o canal pede o `IP:porta` do celular digitado
+numa tela própria (`roku/components/IpEntry.*`), salvo em
+`roRegistrySection` pra não perguntar de novo — reabre com o botão `*`
+do controle.
+
 ## Estado atual / próximos passos
 
-- Código escrito e `npx tsc --noEmit` passa sem erros.
-- **Ainda não testado em dispositivo físico** — próximo passo é rodar
-  `npx react-native run-android` num Android real na mesma rede Wi-Fi,
-  validar `GET /state` via `curl` de outro dispositivo na rede, depois
-  abrir a URL num navegador de desktop antes de partir para a Roku (ver
-  seção "Testando na TV" do README).
-- Usuário ainda não comprou o Roku Streaming Stick — quando comprar,
-  testar o navegador disponível na Channel Store dele especificamente
-  (varia por região/modelo).
+- **Testado em Android físico com sucesso**: build release (`assembleRelease`,
+  standalone, JS embutido) instalada e rodando; rotação livre
+  (`fullSensor`) e o link "reiniciar configuração" durante o run também
+  validados nessa sessão.
+- iOS: só landscape liberado no `Info.plist`, **nunca testado** em
+  dispositivo (usuário só tem Android à mão até agora).
+- Canal Roku (`roku/`) está **escrito mas ainda não sideloaded/testado**
+  em hardware real — precisa do IP + senha de dev de uma Roku do usuário
+  pra eu instalar via `curl` e iterar (ver seção do README). Primeira
+  rodada de testes reais é o próximo passo natural.
+- Página HTML (`receiverHtml.ts`) pra outras Smart TVs (Samsung, LG,
+  Android TV, Fire TV) **nunca foi validada em TV real** ainda — só o
+  canal Roku e o app Android foram testados fisicamente até agora.
 
 ## Skills relevantes do Claude Code para este projeto
 

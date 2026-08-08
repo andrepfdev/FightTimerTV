@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Cena principal do canal. Espelha o layout/cores de
+  src/receiver/receiverHtml.ts (fundo escuro, número gigante amarelo,
+  indicador de round, barra de progresso, overlay "FIM", banner de
+  offline) — só que desenhado em SceneGraph em vez de HTML/CSS, e
+  alimentado por PollTask em vez de fetch()/setTimeout.
+
+  A tela de digitar IP:porta é um teclado numérico simples, todo
+  controlado por esta própria cena (sem componente filho separado) —
+  em teste real numa Roku de verdade, roteamento de tecla pra dentro de
+  um componente customizado aninhado (IpEntry) se mostrou não-confiável
+  mesmo com foco nativo confirmado via hasFocus(); a MainScene em si
+  sempre recebe as teclas corretamente, então o teclado é gerenciado
+  aqui com destaque manual (cor), sem depender de setFocus() por tecla.
+-->
+<component name="MainScene" extends="Scene">
+    <interface>
+    </interface>
+
+    <children>
+        <Rectangle id="background" color="0x1A1A1AFF" width="1920" height="1080" />
+
+        <Label id="logo" text="FIGHT TIMER" translation="[40, 36]"
+               color="0xFFFFFF66" />
+
+        <Label id="offlineBanner"
+               text="Sem conexão com o celular — tentando reconectar…"
+               translation="[0, 70]" width="1920" horizAlign="center"
+               color="0xFF4444FF" visible="false" />
+
+        <Label id="roundIndicator" text="Aguardando o celular…"
+               translation="[0, 360]" width="1920" horizAlign="center"
+               color="0xFFFFFFE0" />
+
+        <Label id="bigTimer" text="00:00"
+               translation="[0, 420]" width="1920" height="440"
+               horizAlign="center" vertAlign="center"
+               color="0x666666FF" />
+
+        <Rectangle id="progressWrap" translation="[0, 1060]"
+                   width="1920" height="20" color="0xFFFFFF0D" />
+        <Rectangle id="progressFill" translation="[0, 1060]"
+                   width="0" height="20" color="0xC8F400FF" />
+
+        <Group id="doneOverlay" visible="false">
+            <Rectangle id="doneBg" color="0x1A1A1AF7" width="1920" height="1080" />
+            <Label id="doneTitle" text="FIM!" translation="[0, 400]"
+                   width="1920" horizAlign="center" color="0xC8F400FF" />
+            <Label id="doneSub" text="" translation="[0, 640]"
+                   width="1920" horizAlign="center" color="0x666666FF" />
+        </Group>
+
+        <!-- Teclado de configuração de IP:porta -->
+        <Group id="ipEntryGroup" visible="false">
+            <Rectangle id="ipEntryBg" color="0x1A1A1AFF" width="1920" height="1080" />
+            <Label id="ipEntryTitle" text="Digite o endereço mostrado no celular"
+                   translation="[0, 120]" width="1920" horizAlign="center"
+                   color="0xFFFFFFFF" />
+            <Label id="ipEntryHint" text="Exemplo: 192.168.0.42:8080 — use as setas e OK"
+                   translation="[0, 190]" width="1920" horizAlign="center"
+                   color="0x666666FF" />
+            <Rectangle id="ipDisplayBg" translation="[660, 250]" width="600" height="90"
+                       color="0x2A2A2AFF" />
+            <Label id="ipDisplay" text="" translation="[660, 250]" width="600" height="90"
+                   horizAlign="center" vertAlign="center" color="0xC8F400FF" />
+
+            <!-- Teclado numérico: navegação linear (cima/baixo) entre as
+                 teclas, sem precisar de foco nativo por nó — a cor de
+                 cada tecla é pintada manualmente pelo código. -->
+            <Rectangle id="key_0_bg" translation="[660,380]" width="160" height="100" color="0x2A2A2AFF" />
+            <Label id="key_0" text="1" translation="[660,380]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+            <Rectangle id="key_1_bg" translation="[840,380]" width="160" height="100" color="0x2A2A2AFF" />
+            <Label id="key_1" text="2" translation="[840,380]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+            <Rectangle id="key_2_bg" translation="[1020,380]" width="160" height="100" color="0x2A2A2AFF" />
+            <Label id="key_2" text="3" translation="[1020,380]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+
+            <Rectangle id="key_3_bg" translation="[660,500]" width="160" height="100" color="0x2A2A2AFF" />
+            <Label id="key_3" text="4" translation="[660,500]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+            <Rectangle id="key_4_bg" translation="[840,500]" width="160" height="100" color="0x2A2A2AFF" />
+            <Label id="key_4" text="5" translation="[840,500]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+            <Rectangle id="key_5_bg" translation="[1020,500]" width="160" height="100" color="0x2A2A2AFF" />
+            <Label id="key_5" text="6" translation="[1020,500]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+
+            <Rectangle id="key_6_bg" translation="[660,620]" width="160" height="100" color="0x2A2A2AFF" />
+            <Label id="key_6" text="7" translation="[660,620]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+            <Rectangle id="key_7_bg" translation="[840,620]" width="160" height="100" color="0x2A2A2AFF" />
+            <Label id="key_7" text="8" translation="[840,620]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+            <Rectangle id="key_8_bg" translation="[1020,620]" width="160" height="100" color="0x2A2A2AFF" />
+            <Label id="key_8" text="9" translation="[1020,620]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+
+            <Rectangle id="key_9_bg" translation="[660,740]" width="160" height="100" color="0x2A2A2AFF" />
+            <Label id="key_9" text="." translation="[660,740]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+            <Rectangle id="key_10_bg" translation="[840,740]" width="160" height="100" color="0x2A2A2AFF" />
+            <Label id="key_10" text="0" translation="[840,740]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+            <Rectangle id="key_11_bg" translation="[1020,740]" width="160" height="100" color="0x2A2A2AFF" />
+            <Label id="key_11" text=":" translation="[1020,740]" width="160" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+
+            <Rectangle id="key_12_bg" translation="[660,860]" width="250" height="100" color="0x2A2A2AFF" />
+            <Label id="key_12" text="APAGAR" translation="[660,860]" width="250" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+            <Rectangle id="key_13_bg" translation="[930,860]" width="250" height="100" color="0x2A2A2AFF" />
+            <Label id="key_13" text="CONFIRMAR" translation="[930,860]" width="250" height="100" horizAlign="center" vertAlign="center" color="0xFFFFFFFF" />
+        </Group>
+
+        <PollTask id="pollTask" />
+        <Audio id="bellAudio" />
+
+        <!-- setFocus() chamado durante a construção da cena (antes de
+             roSGScreen.show() rodar em main.brs) falha silenciosamente —
+             confirmado em teste real. Esse Timer adia a primeira (e
+             única) tentativa de foco da cena pra depois dela já estar
+             de fato na tela. -->
+        <Timer id="initialFocusTimer" duration="0.3" repeat="false" />
+    </children>
+
+    <script type="text/brightscript" uri="pkg:/components/MainScene.brs" />
+</component>

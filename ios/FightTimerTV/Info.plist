@@ -50,9 +50,15 @@
 	<array>
 		<string>arm64</string>
 	</array>
+	<!-- Nota: a Apple não expõe API para ignorar o toggle de "Bloqueio de
+	     Rotação" da Central de Controle — com ele ativo, o app fica preso
+	     em portrait mesmo com landscape liberado aqui (diferente do
+	     Android, onde screenOrientation="fullSensor" ignora esse toggle). -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>

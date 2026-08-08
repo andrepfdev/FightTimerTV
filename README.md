@@ -90,6 +90,60 @@ npx react-native run-ios
 - `NSAllowsLocalNetworking` já vinha `true` no template — necessário para o
   próprio app falar HTTP (não HTTPS) com a rede local.
 
+## Canal Roku nativo (`roku/`)
+
+Como Roku não é Cast-receiver e depender de um navegador "sideloaded"
+de terceiros é frágil (motores JS antigos/instáveis), o projeto inclui
+um **canal Roku nativo** em BrightScript/SceneGraph
+([roku/](roku/)) que fala HTTP diretamente com `GET /state` — sem
+navegador nenhum no meio.
+
+### Estrutura
+- [roku/manifest](roku/manifest) — metadados do canal.
+- [roku/source/main.brs](roku/source/main.brs) — entry point.
+- [roku/components/MainScene.xml](roku/components/MainScene.xml) /
+  `.brs` — UI (timer gigante, indicador de round, barra de progresso,
+  overlay "FIM", banner de offline) e a lógica de aplicar o estado
+  recebido, espelhando `applyState()`/`maybePlayBell()` de
+  [src/receiver/receiverHtml.ts](src/receiver/receiverHtml.ts).
+- [roku/components/PollTask.xml](roku/components/PollTask.xml) / `.brs`
+  — Task SceneGraph que faz o polling em `/state` a cada 300ms numa
+  thread própria (obrigatório pra rede em SceneGraph).
+- [roku/components/IpEntry.xml](roku/components/IpEntry.xml) / `.brs`
+  — tela de digitar o `IP:porta` do celular (Roku não tem câmera pra
+  QR code nem teclado físico). Salvo em `roRegistrySection`, só pede de
+  novo se você apertar `*` no controle.
+- [roku/audio/bell.wav](roku/audio/bell.wav) e `tick.wav` — sino/aviso
+  sonoro. Como Roku não tem Web Audio API, são tons sintetizados via
+  `ffmpeg` como placeholder (não é o mesmo sintetizador metálico do
+  `receiverHtml.ts`) — trocar o `.wav` depois é suficiente se quiser um
+  som melhor.
+
+### Instalar (sideload, 100% rede local)
+1. Habilite o Developer Mode na Roku: no controle físico, **Home×3,
+   Cima×2, Direita, Esquerda, Direita, Esquerda, Direita**. A tela
+   mostra o IP da Roku e pede uma senha (usuário fixo `rokudev`).
+2. Empacote: `cd roku && zip -r ../fighttimer-roku.zip .`
+3. Instale via `curl` (substitui a versão sideloaded anterior):
+   ```bash
+   curl --user rokudev:<senha> --anyauth -sS \
+     -F "mysubmit=Install" -F "archive=@fighttimer-roku.zip" -F "passwd=" \
+     http://<ip-da-roku>/plugin_install
+   ```
+   (ou abra `http://<ip-da-roku>` no navegador e suba o `.zip` pela
+   interface do Development Application Installer.)
+4. Abra o canal, digite `<ip-do-celular>:8080` na tela de configuração.
+
+### Distribuir nas duas TVs sem depender de Developer Mode permanente
+Depois de validado, publique como **Beta App** no [Roku Developer
+Dashboard](https://developer.roku.com/dev/docs/channel-publishing-guide)
+(conta gratuita) — não passa por certificação da Streaming Store, gera
+um código de acesso que qualquer Roku instala normalmente via
+**Streaming Channels → "Add Channel with code"**, sem precisar de
+Developer Mode nem digitar IP/senha em cada TV. Ainda exige gerar um
+`.pkg` assinado via o Development Application Installer (precisa de
+Developer Mode habilitado temporariamente numa Roku só, pra empacotar).
+
 ## Limitação conhecida: app precisa ficar em primeiro plano
 
 O app usa `useKeepAwake` para impedir que a tela do celular apague sozinha,

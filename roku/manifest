@@ -1,0 +1,16 @@
+title=Fight Timer TV
+major_version=1
+minor_version=0
+build_version=1
+
+; Usa coordenadas 1920x1080 — mais simples de mapear em cima do layout
+; já desenhado para a página HTML da TV (src/receiver/receiverHtml.ts).
+ui_resolutions=fhd
+
+mm_icon_focus_hd=pkg:/images/icon_focus_hd.png
+splash_screen_fhd=pkg:/images/splash_fhd.png
+
+; Fundo escuro atrás do splash enquanto carrega, igual ao --dark do
+; receptor HTML (#1a1a1a).
+splash_color=#1a1a1a
+splash_min_time=800

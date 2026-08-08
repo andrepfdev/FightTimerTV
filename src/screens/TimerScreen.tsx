@@ -1,13 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppState,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+// SafeAreaView do react-native "puro" não recalcula direito ao girar a
+// tela no Android (ficava sem respiro no topo em paisagem) — a versão de
+// react-native-safe-area-context escuta os insets corretos em cada rotação.
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useKeepAwake } from '@sayem314/react-native-keep-awake';
 import { NetworkInfo } from 'react-native-network-info';
 import QRCode from 'react-native-qrcode-svg';
@@ -176,9 +179,14 @@ export default function TimerScreen() {
             {mmss(timeLeft)}
           </Text>
           {!done && (
-            <TouchableOpacity style={styles.pauseBtn} onPress={togglePause}>
-              <Text style={styles.pauseBtnText}>{paused ? 'CONTINUAR' : 'PAUSAR'}</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity style={styles.pauseBtn} onPress={togglePause}>
+                <Text style={styles.pauseBtnText}>{paused ? 'CONTINUAR' : 'PAUSAR'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.resetLink} onPress={backToSetup}>
+                <Text style={styles.resetLinkText}>REINICIAR CONFIGURAÇÃO</Text>
+              </TouchableOpacity>
+            </>
           )}
           {done && (
             <TouchableOpacity style={styles.pauseBtn} onPress={backToSetup}>
@@ -317,6 +325,8 @@ const styles = StyleSheet.create({
     marginTop: 28,
   },
   pauseBtnText: { color: '#fff', fontSize: 16, letterSpacing: 5 },
+  resetLink: { marginTop: 20, padding: 8 },
+  resetLinkText: { color: MUTED, fontSize: 12, letterSpacing: 3 },
 
   progressWrap: { width: '100%', height: 8, backgroundColor: 'rgba(255,255,255,0.05)' },
   progressFill: { height: '100%', backgroundColor: YELLOW },
