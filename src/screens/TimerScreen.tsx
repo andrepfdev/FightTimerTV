@@ -56,6 +56,7 @@ export default function TimerScreen() {
 
   const [serverError, setServerError] = useState<string | null>(null);
   const [backgroundWarning, setBackgroundWarning] = useState(false);
+  const [foregroundServiceError, setForegroundServiceError] = useState<string | null>(null);
 
   // Impede a tela de apagar sozinha durante o uso — o timer só avança de
   // fato enquanto o app está em foreground, então apagar a tela derrubaria
@@ -77,8 +78,12 @@ export default function TimerScreen() {
   // sendo a única rede de segurança.
   useEffect(() => {
     if (Platform.OS !== 'android' || screen !== 'run') return;
-    NativeModules.TimerForeground?.start();
-    return () => NativeModules.TimerForeground?.stop();
+    NativeModules.TimerForeground?.start()
+      .then(() => setForegroundServiceError(null))
+      .catch((err: Error) => setForegroundServiceError(err.message));
+    return () => {
+      NativeModules.TimerForeground?.stop().catch(() => {});
+    };
   }, [screen]);
 
   // Rede de segurança: mesmo com o foreground service, o Android pode
@@ -203,6 +208,11 @@ export default function TimerScreen() {
                 <Text style={styles.resetLinkText}>REINICIAR CONFIGURAÇÃO</Text>
               </TouchableOpacity>
             </>
+          )}
+          {foregroundServiceError && (
+            <Text style={styles.errorText}>
+              Proteção de segundo plano falhou: {foregroundServiceError}
+            </Text>
           )}
           {done && (
             <TouchableOpacity style={styles.pauseBtn} onPress={backToSetup}>
