@@ -30,10 +30,17 @@ class TimerForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, buildNotification())
-        // START_STICKY não é necessário aqui: se o Android matar o
-        // processo mesmo assim, o app inteiro (JS incluso) já era — não
-        // faz sentido o Android recriar só o Service sem a Activity/JS.
+        // Isso é uma melhoria de confiabilidade, não algo essencial pro
+        // app funcionar — nunca pode derrubar o app inteiro. Já
+        // aconteceu de verdade (tipo "connectedDevice" lançava exceção
+        // não tratada em Android 14+ e fechava o app ao apertar
+        // "INICIAR"); com "specialUse" isso não deveria mais acontecer,
+        // mas o try/catch fica como rede de segurança permanente.
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        } catch (e: Exception) {
+            stopSelf()
+        }
         return START_NOT_STICKY
     }
 

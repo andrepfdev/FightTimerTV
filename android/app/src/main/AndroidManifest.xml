@@ -6,11 +6,15 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Foreground service que mantém o cronômetro/servidor HTTP vivos
          quando o app é minimizado de propósito durante uma luta (ver
-         TimerForegroundService.kt). "connectedDevice" é o tipo mais
-         correto: o celular transmite continuamente pra um dispositivo
-         companion (a TV) via rede local. -->
+         TimerForegroundService.kt). "connectedDevice" (usado numa
+         primeira tentativa) tem pré-requisitos de Bluetooth/companion
+         device no Android 14+ que este app não atende e derrubava o app
+         inteiro com uma exceção não tratada ao chamar startForeground()
+         — confirmado em teste real (crash ao apertar "INICIAR").
+         "specialUse" é o tipo genérico documentado pra casos que não se
+         encaixam nos tipos específicos, sem essas exigências. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
       android:name=".MainApplication"
@@ -37,6 +41,10 @@
       <service
         android:name=".TimerForegroundService"
         android:exported="false"
-        android:foregroundServiceType="connectedDevice" />
+        android:foregroundServiceType="specialUse">
+        <property
+          android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+          android:value="Mantém o cronômetro e o servidor HTTP local transmitindo para a TV enquanto o app está minimizado" />
+      </service>
     </application>
 </manifest>
