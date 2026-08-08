@@ -4,6 +4,13 @@
     <!-- Necessárias para ler o IP/SSID da rede Wi-Fi e montar a URL/QR code da TV -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Foreground service que mantém o cronômetro/servidor HTTP vivos
+         quando o app é minimizado de propósito durante uma luta (ver
+         TimerForegroundService.kt). "connectedDevice" é o tipo mais
+         correto: o celular transmite continuamente pra um dispositivo
+         companion (a TV) via rede local. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
     <application
       android:name=".MainApplication"
@@ -27,5 +34,9 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
+      <service
+        android:name=".TimerForegroundService"
+        android:exported="false"
+        android:foregroundServiceType="connectedDevice" />
     </application>
 </manifest>

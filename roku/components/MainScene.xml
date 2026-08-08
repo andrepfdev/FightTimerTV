@@ -49,7 +49,7 @@
                translation="[0, 360]" width="1920" height="440"
                horizAlign="center" vertAlign="center"
                color="0x666666FF">
-            <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="320" />
+            <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="380" />
         </Label>
 
         <Rectangle id="progressWrap" translation="[0, 1060]"

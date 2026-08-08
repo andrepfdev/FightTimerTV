@@ -44,6 +44,18 @@
 	<array>
 		<string>_http._tcp</string>
 	</array>
+	<!-- Fonte do app (mesma usada no receptor HTML da TV,
+	     src/receiver/assets/BebasNeue-Regular.ttf, copiada aqui pra
+	     ios/FightTimerTV/BebasNeue-Regular.ttf). NOTA: além dessa entrada
+	     no Info.plist, o .ttf precisa estar marcado como "Copy Bundle
+	     Resources" no target do Xcode — isso só dá pra fazer arrastando o
+	     arquivo pro projeto no Xcode (não dá pra editar o .pbxproj com
+	     segurança por fora); ninguém testou iOS ainda, então isso fica
+	     pendente pro primeiro build nesse SO. -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>BebasNeue-Regular.ttf</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>

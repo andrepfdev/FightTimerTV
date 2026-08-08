@@ -14,8 +14,10 @@ class MainApplication : Application(), ReactApplication {
       context = applicationContext,
       packageList =
         PackageList(this).packages.apply {
-          // Packages that cannot be autolinked yet can be added manually here, for example:
-          // add(MyReactNativePackage())
+          // Módulo nativo simples (sem autolink por não ser um pacote
+          // npm) que liga/desliga o TimerForegroundService — ver
+          // TimerForegroundModule.kt.
+          add(TimerForegroundPackage())
         },
     )
   }

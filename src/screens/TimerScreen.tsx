@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppState,
+  NativeModules,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -66,10 +68,24 @@ export default function TimerScreen() {
     return () => server.stop();
   }, [server]);
 
-  // Não há foreground service nativo: se o app for minimizado mesmo assim
-  // (ex. usuário troca de app), o tick para enquanto em background. Ao
-  // voltar, avisamos que o tempo pode ter ficado impreciso em vez de
-  // fingir que nada aconteceu.
+  // Foreground service nativo (Android only, ver TimerForegroundService.kt):
+  // mantém o processo com prioridade alta enquanto uma luta está rodando,
+  // pra o Android não suspender o tick/servidor HTTP quando o usuário
+  // minimiza o app de propósito. Ligado à tela 'run' inteira (rodando ou
+  // pausado), não só a rodadas ativas, pra não ter brecha entre pausar e
+  // minimizar. Sem equivalente no iOS ainda — lá o aviso abaixo continua
+  // sendo a única rede de segurança.
+  useEffect(() => {
+    if (Platform.OS !== 'android' || screen !== 'run') return;
+    NativeModules.TimerForeground?.start();
+    return () => NativeModules.TimerForeground?.stop();
+  }, [screen]);
+
+  // Rede de segurança: mesmo com o foreground service, o Android pode
+  // matar o processo em aparelhos muito agressivos com bateria (e no iOS
+  // não há foreground service nenhum ainda). Se o tick parar mesmo assim,
+  // avisamos que o tempo pode ter ficado impreciso em vez de fingir que
+  // nada aconteceu.
   useEffect(() => {
     let wasBackground = false;
     const sub = AppState.addEventListener('change', nextState => {
@@ -297,11 +313,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   circleBtnText: { color: '#fff', fontSize: 26, lineHeight: 26 },
-  configLabel: { color: '#fff', fontSize: 20, letterSpacing: 3, minWidth: 110, textAlign: 'center' },
-  configValue: { color: '#fff', fontSize: 20, letterSpacing: 2, minWidth: 70, textAlign: 'center' },
+  configLabel: {
+    color: '#fff', fontSize: 22, letterSpacing: 3, minWidth: 110, textAlign: 'center',
+    fontFamily: 'BebasNeue-Regular',
+  },
+  configValue: {
+    color: '#fff', fontSize: 22, letterSpacing: 2, minWidth: 70, textAlign: 'center',
+    fontFamily: 'BebasNeue-Regular',
+  },
 
   timerSetupWrap: { flexDirection: 'row', alignItems: 'center', gap: 20, marginVertical: 20 },
-  bigTimerSetup: { color: '#fff', fontSize: 56, fontVariant: ['tabular-nums'], letterSpacing: -1 },
+  bigTimerSetup: {
+    color: '#fff', fontSize: 72, fontVariant: ['tabular-nums'], letterSpacing: -1,
+    fontFamily: 'BebasNeue-Regular',
+  },
 
   startBtn: {
     backgroundColor: YELLOW,
@@ -310,11 +335,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 72,
     marginTop: 24,
   },
-  startBtnText: { color: '#111', fontSize: 20, fontWeight: '700', letterSpacing: 6 },
+  startBtnText: {
+    color: '#111', fontSize: 22, letterSpacing: 6, fontFamily: 'BebasNeue-Regular',
+  },
 
   runBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  roundIndicator: { color: '#fff', fontSize: 20, letterSpacing: 4, opacity: 0.88, marginBottom: 16 },
-  bigTimer: { color: YELLOW, fontSize: 80, fontVariant: ['tabular-nums'], letterSpacing: -2 },
+  roundIndicator: {
+    color: '#fff', fontSize: 24, letterSpacing: 4, opacity: 0.88, marginBottom: 16,
+    fontFamily: 'BebasNeue-Regular',
+  },
+  bigTimer: {
+    color: YELLOW, fontSize: 110, fontVariant: ['tabular-nums'], letterSpacing: -2,
+    fontFamily: 'BebasNeue-Regular',
+  },
   bigTimerRest: { color: MUTED },
   bigTimerWarning: { color: WARNING },
   pauseBtn: {
@@ -324,9 +357,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 48,
     marginTop: 28,
   },
-  pauseBtnText: { color: '#fff', fontSize: 16, letterSpacing: 5 },
+  pauseBtnText: { color: '#fff', fontSize: 18, letterSpacing: 5, fontFamily: 'BebasNeue-Regular' },
   resetLink: { marginTop: 20, padding: 8 },
-  resetLinkText: { color: MUTED, fontSize: 12, letterSpacing: 3 },
+  resetLinkText: { color: MUTED, fontSize: 13, letterSpacing: 3, fontFamily: 'BebasNeue-Regular' },
 
   progressWrap: { width: '100%', height: 8, backgroundColor: 'rgba(255,255,255,0.05)' },
   progressFill: { height: '100%', backgroundColor: YELLOW },
