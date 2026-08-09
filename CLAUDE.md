@@ -80,11 +80,20 @@ src/receiver/receiverHtml.ts   — HTML/CSS/JS estático servido para a TV:
                                   parede local: guarda schedule+elapsedMs em
                                   cache e segue contando sozinho (ver 8ª)
 src/receiver/bebasNeueFont.ts  — fonte Bebas Neue embutida em base64
-                                  (copiada de ct-timer/fonts/)
-android/…, ios/…               — permissões já configuradas (ver README.md)
+                                  (copiada de ct-timer/fonts/); mesmo .ttf
+                                  também linkado nativamente em
+                                  android/app/src/main/assets/fonts/ e
+                                  roku/fonts/ (ver 10ª decisão)
+android/…, ios/…               — permissões já configuradas (ver README.md);
+                                  TimerForegroundService.kt/Module.kt/
+                                  Package.kt em android/app/src/main/java/
+                                  com/fighttimertv/ (ver 9ª decisão); ícone
+                                  custom em mipmap-*/ic_launcher*.png
 roku/                          — canal Roku nativo (BrightScript/SceneGraph),
-                                  ver 7ª decisão abaixo e a seção "Canal Roku
-                                  nativo" do README.md
+                                  testado em hardware real (ver 7ª decisão e
+                                  a seção "Canal Roku nativo" do README.md)
+eas.json, app.json              — config do EAS Build pra compilar iOS na
+                                  nuvem sem precisar de Mac (ver 10ª decisão)
 ```
 
 ## 6ª decisão: layout copiado do `ct-timer` original
@@ -116,28 +125,84 @@ convivem.** `GET /` continua servindo `receiverHtml.ts` normalmente, e
 continua sendo o caminho pra **qualquer outra Smart TV com navegador**
 (Samsung Tizen, LG webOS, Android TV/Google TV, Fire TV) — só a Roku
 ganhou um canal dedicado porque é o caso onde o navegador não é uma
-opção confiável. Ver seção "Canal Roku nativo" do README.md para
-estrutura, instalação (sideload/dev mode) e o caminho de distribuição
-"final" via Beta App do Roku Developer Dashboard, sem depender de
-Developer Mode permanente nas TVs.
+opção confiável.
 
-Detalhes técnicos que valem registrar: como SceneGraph não tem Web Audio
-API, o sino/aviso sonoro do canal Roku são tons sintetizados via
-`ffmpeg` (`roku/audio/bell.wav`/`tick.wav`) — não é o mesmo sintetizador
-metálico do `receiverHtml.ts`, é um placeholder. E como a Roku não tem
-câmera pra ler QR code, o canal pede o `IP:porta` do celular digitado
-numa tela própria (`roku/components/IpEntry.*`), salvo em
-`roRegistrySection` pra não perguntar de novo — reabre com o botão `*`
-do controle.
+**Testado em hardware real com sucesso** nesta sessão (Roku TV AOC,
+`192.168.0.18`) — polling, timer, sons de início/fim distintos, fonte
+Bebas Neue embutida, spinners de configuração de IP. Ver seção "Canal
+Roku nativo" do README.md para a estrutura completa e o passo a passo de
+instalação/empacotamento — inclui um **kit de depuração remota** (console
+de debug via telnet, simulação de controle remoto via ECP) que valeu a
+pena documentar em detalhe, porque foi assim que os bugs abaixo foram
+encontrados sem acesso físico à TV.
+
+### Bugs reais encontrados e corrigidos no canal Roku (não reintroduzir)
+1. **Campo `visible` redeclarado como custom** num componente filho
+   colidia com o campo nativo já existente em todo nó SceneGraph — o
+   `onChange` simplesmente não disparava. Nunca redeclarar `visible`;
+   usar outro nome de campo pra qualquer coisa "ligada" a mostrar/esconder.
+2. **`setFocus()` chamado durante `init()` da cena sempre falha**
+   silenciosamente (retorna `false`/o nó nunca fica com foco de verdade)
+   porque `roSGScreen.show()` só roda depois, em `main.brs`. Corrigido
+   com um `Timer` de disparo único que adia a primeira tentativa de foco.
+3. **Roteamento de tecla pra dentro de um componente customizado
+   aninhado (`IpEntry`) não é confiável**, mesmo com foco confirmado via
+   `hasFocus()` retornando `true` — eventos de tecla real do controle só
+   chegavam de forma consistente na `MainScene` (cena raiz). Solução:
+   abandonar o componente filho separado e gerenciar a tela de IP
+   inteira dentro da própria `MainScene`, com destaque manual de cor em
+   vez de depender do sistema de foco nativo por nó.
+4. **Teclado alfanumérico pra digitar `IP:porta` trocava "." por ":"**
+   de forma consistente (bug de índice, não de digitação do usuário) —
+   abandonado de vez o teclado; virou **4 spinners numéricos (0-255)**
+   pros octetos do IP + porta `8080` fixa (nunca editável, já que o app
+   RN sempre usa essa porta) — sugestão do usuário, eliminou a classe
+   inteira de bug.
+5. **Fontes customizadas sem `uri` de verdade (só `size`, ou nomes
+   `font:...` de sistema) renderizaram como "tofu" (quadrados vazios)**
+   em teste real — confirmado visualmente. Corrigido embutindo a fonte
+   Bebas Neue de verdade (`roku/fonts/BebasNeue-Regular.ttf`) via
+   `<Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="..."/>`
+   dentro de cada `<Label>`. É o mesmo `.ttf` usado no receiver HTML e
+   agora também no app RN (ver 10ª decisão).
+6. **`foregroundServiceType="connectedDevice"` no Android crashava o
+   app** (não é bug da Roku, é o outro lado do sistema) — ver 9ª decisão.
+
+### Kit de depuração remota da Roku (documentar pra não redescobrir)
+- **Console de debug ao vivo**: `telnet <ip-roku> 8085` (ou
+  `exec 3<>/dev/tcp/<ip>/8085; cat <&3` em bash puro) — mostra os
+  `print` do BrightScript e stack traces de erro em tempo real. Conectar
+  ANTES de reinstalar pra não perder o boot log (a conexão só mostra
+  daí pra frente, não tem replay completo do histórico).
+- **ECP (External Control Protocol)**, porta 8060, sem autenticação:
+  - `curl -d '' http://<ip>:8060/keypress/<Tecla>` simula um botão do
+    controle remoto (`Up`, `Down`, `Left`, `Right`, `Select`, `Back`,
+    `Info` etc.) — dá pra automatizar navegação sem controle físico.
+    **Cuidado**: útil pra testes gerais, mas não confie cegamente nele
+    pra depurar timing fino (esse projeto teve um caso real de resultado
+    diferente entre ECP e controle físico por causa de velocidade de
+    disparo, não era bug de app).
+  - `curl http://<ip>:8060/query/active-app` confirma qual canal está
+    rodando.
+- **Sideload via `curl`** (ver README) sempre substitui a versão anterior
+  e reinicia o canal — mas se o `.zip` for **idêntico** ao já instalado,
+  a Roku responde "Identical to previous version -- not replacing." e
+  NÃO reinstala. Mudar o `build_version` no `roku/manifest` a cada
+  iteração garante que sempre reinstala de verdade.
+- **Gerar chave de assinatura + `.pkg`** (pra Beta App, ver README): usa
+  **porta 8080 por telnet** (`genkey`) — não confundir com a porta 8085
+  do console de debug, nem com a 8060 do ECP. Três portas, três
+  finalidades diferentes.
 
 ## 8ª decisão: tempo derivado de relógio de parede, não de contador
 
-Sessões passadas tentaram (1) foreground service e (2) compensação de tempo
-via `AppState` — a compensação "avançava X segundos ao voltar", o que
-funcionava mal em transições de fase e ainda deixava a TV congelada em
-background. A solução definitiva, **testada em hardware real com sucesso**
-(celular em 2º plano + TV sincronizada), foi abandonar a contagem
-decrementada por `setInterval`:
+Uma tentativa anterior nesta mesma sessão foi **compensar tempo via
+`AppState`** — "avançar X segundos ao voltar do background" — o que
+funcionava mal em transições de fase e ainda deixava a TV congelada
+enquanto o app estava minimizado (só corrigia o estrago depois). A
+solução definitiva, **testada em hardware real com sucesso** (celular em
+2º plano + TV sincronizada, aprovado pelo usuário), foi abandonar a
+contagem decrementada por `setInterval` inteiramente:
 
 - **`TimerScreen.tsx` e `timerServer.ts`** guardam apenas **âncoras de
   relógio** (`startedAtMs` + tempo já acumulado; pause congela a âncora e
@@ -158,19 +223,91 @@ foi tentada e **abandonada** por resolver ~metade do problema. A forma
 correta é sempre derivar de `Date.now()` — ver `phaseAtElapsedMs()` e como
 o receiver cacheids o cronograma.
 
+**O foreground service (ver 9ª decisão) não foi abandonado** — continua
+existindo como camada extra de confiabilidade (mantém o processo com
+prioridade alta, o que ajuda o servidor HTTP a continuar respondendo
+rápido em background), só deixou de ser a *fonte da correção* do tempo
+em si. As duas coisas convivem.
+
+## 9ª decisão: foreground service Android como reforço (não a correção em si)
+
+Mesmo com o relógio de parede (8ª decisão) garantindo que o **tempo**
+sempre bate, um foreground service ajuda o **servidor HTTP** a continuar
+respondendo com prioridade normal em segundo plano (sem ele, o Android
+pode limitar tanto a ponto do processo nem processar a request de
+`/state` a tempo). Implementado em
+[android/app/src/main/java/com/fighttimertv/TimerForegroundService.kt](android/app/src/main/java/com/fighttimertv/TimerForegroundService.kt)
++ `TimerForegroundModule.kt` (ponte pro RN, com `Promise` em vez de
+fire-and-forget — importante pra poder mostrar erro real na tela em vez
+de falha silenciosa) + `TimerForegroundPackage.kt`, ligado a
+`screen === 'run'` em `TimerScreen.tsx`.
+
+**Bug real encontrado e corrigido**: a primeira versão usava
+`android:foregroundServiceType="connectedDevice"`, que no Android 14+
+tem pré-requisitos de Bluetooth/companion device que o app não atende —
+lançava uma exceção não tratada dentro de `startForeground()` e
+**derrubava o app inteiro** ao apertar "INICIAR" (confirmado em teste
+real: "abre e fecha sozinho"). Trocado para
+`android:foregroundServiceType="specialUse"` (tipo genérico documentado,
+sem pré-requisitos de hardware) + `try/catch` em toda parte arriscada —
+esse recurso **nunca pode derrubar o app**, é melhoria de confiabilidade,
+não algo essencial.
+
+Um segundo problema apareceu depois (app não crashava mais, mas também
+não mostrava a notificação nem erro nenhum): investigado com
+`Promise.reject()` propagando a mensagem real de exceção pra tela do
+app (em vez de engolir com try/catch mudo) — método útil de diagnosticar
+sem `adb logcat`, que não estava disponível nessa sessão (celular só
+conectado via Wi-Fi, nunca por cabo USB nesta máquina).
+
+## 10ª decisão: Bebas Neue e ícone também no app do celular
+
+Até aqui a fonte Bebas Neue só existia embutida no HTML da TV
+(`src/receiver/bebasNeueFont.ts`). Pedido do usuário: "nem toda TV usa
+Roku" — as correções visuais precisam valer pro app RN também, não só
+pro receptor da TV. Copiado o mesmo `.ttf` pra
+`android/app/src/main/assets/fonts/` (convenção de autolink do RN
+≥0.60, sem precisar de `react-native.config.js`) e aplicado via
+`fontFamily: 'BebasNeue-Regular'` nos estilos de `TimerScreen.tsx`. iOS
+recebeu a entrada `UIAppFonts` no `Info.plist`, mas **ainda precisa que
+alguém arraste o `.ttf` pro projeto Xcode manualmente** (não dá pra
+editar o `.pbxproj` com segurança só por fora) — pendente até o primeiro
+build em macOS.
+
+O ícone do app também foi trocado do placeholder padrão do template RN
+(robozinho verde do Android) para um ícone customizado gerado com
+Pillow/Python (`android/app/src/main/res/mipmap-*/ic_launcher*.png`):
+cronômetro amarelo em fundo **preto sólido, edge-to-edge** — importante
+que o fundo preencha o quadrado inteiro sem transparência/padding, senão
+alguns launchers (confirmado num Samsung One UI) desenham um quadrado
+branco atrás do ícone.
+
 ## Estado atual / próximos passos
 
-- **Testado em Android físico com sucesso**: build release (`assembleRelease`,
-  standalone, JS embutido) instalada e rodando; rotação livre
-  (`fullSensor`), link "reiniciar configuração" durante o run, e — nesta
-  última rodada — **app minimizado em background continua contando e a TV
-  fica sincronizada** (testado e aprovado pelo usuário).
-- iOS: só landscape liberado no `Info.plist`, **nunca testado** em
-  dispositivo (usuário só tem Android à mão até agora).
-- Canal Roku (`roku/`) está **escrito mas ainda não sideloaded/testado**
-  em hardware real — precisa do IP + senha de dev de uma Roku do usuário
-  pra eu instalar via `curl` e iterar (ver seção do README). Primeira
-  rodada de testes reais é o próximo passo natural.
+- **Testado em Android físico com sucesso**: build release
+  (`assembleRelease`, standalone, JS embutido) instalada e rodando;
+  rotação livre (`fullSensor`), link "reiniciar configuração" durante o
+  run, app minimizado em background continua contando e a TV fica
+  sincronizada, foreground service sem crashar, fonte Bebas Neue e ícone
+  customizado aplicados.
+- **Canal Roku testado em hardware real com sucesso** (ver 7ª decisão) —
+  sideload, polling, timer, sons, teclado de configuração, tudo
+  validado. **Empacotado como `.pkg` assinado** (chave de assinatura
+  gerada via `genkey`, guardada com o usuário — Dev ID
+  `f11c8f0748fd3410ffe7cc89e45a85e98ec42166`) pronto pra publicar como
+  Beta App no Roku Developer Dashboard — falta só o usuário criar a
+  conta e fazer o upload (ver README).
+- **iOS**: `Info.plist` com landscape + `UIAppFonts` configurados, mas
+  **nunca testado em dispositivo** (sem Mac disponível nesta máquina).
+  Projeto **vinculado ao EAS Build** (`eas.json` +
+  `extra.eas.projectId` em `app.json`, conta Expo `andrepfdev` já
+  logada nesta máquina) pra buildar na nuvem sem precisar de Mac — mas
+  o primeiro build trava numa etapa que só o usuário pode fazer:
+  autenticação interativa com Apple ID (login + 2FA), que não dá pra
+  automatizar. Comando que o usuário precisa rodar uma vez:
+  `npx eas-cli build --platform ios --profile preview`. Depois da
+  primeira vez, as credenciais ficam salvas e builds futuros não devem
+  precisar de interação.
 - Página HTML (`receiverHtml.ts`) pra outras Smart TVs (Samsung, LG,
   Android TV, Fire TV) **nunca foi validada em TV real** ainda — só o
   canal Roku e o app Android foram testados fisicamente até agora.
