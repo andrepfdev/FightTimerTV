@@ -61,7 +61,6 @@ export default function TimerScreen() {
 
   const [serverError, setServerError] = useState<string | null>(null);
   const [foregroundServiceError, setForegroundServiceError] = useState<string | null>(null);
-  const [foregroundModuleDebug, setForegroundModuleDebug] = useState<string>('verificando...');
 
   // Relógio de parede: `anchorAndElapsed` em refs pra não disparar render.
   const anchorMsRef = useRef(0); // Date.now() da (re)partida do segmento atual
@@ -83,22 +82,6 @@ export default function TimerScreen() {
     NetworkInfo.getIPV4Address().then(setIp).catch(() => setIp(null));
     return () => server.stop();
   }, [server]);
-
-  // Diagnóstico: checar se o módulo nativo TimerForeground existe.
-  useEffect(() => {
-    if (Platform.OS !== 'android') {
-      setForegroundModuleDebug('N/A (iOS)');
-      return;
-    }
-    const mod = NativeModules.TimerForeground;
-    if (mod == null) {
-      setForegroundModuleDebug('❌ NativeModules.TimerForeground é undefined/null');
-    } else if (typeof mod.start !== 'function') {
-      setForegroundModuleDebug(`⚠️ Módulo existe mas .start não é function (tipo: ${typeof mod.start})`);
-    } else {
-      setForegroundModuleDebug('✅ Módulo OK — .start() é function');
-    }
-  }, []);
 
   // Foreground service nativo (Android only): mantém o processo vivo e o
   // que importa aqui, o servidor HTTP, respondendo enquanto o app está em
@@ -295,9 +278,6 @@ export default function TimerScreen() {
           <Text style={styles.tvHint}>
             Pode minimizar o app durante a luta: a TV continua contando pelo
             próprio relógio e o cronômetro volta certo no celular.
-          </Text>
-          <Text style={[styles.errorText, { marginTop: 16 }]}>
-            Debug foreground: {foregroundModuleDebug}
           </Text>
           {serverError && (
             <Text style={styles.errorText}>{serverError}</Text>

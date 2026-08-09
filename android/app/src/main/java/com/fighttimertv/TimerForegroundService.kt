@@ -8,7 +8,6 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
-import android.widget.Toast
 import com.fighttimertv.R
 
 /**
@@ -34,14 +33,11 @@ class TimerForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Toast.makeText(this, "⏱ TimerForegroundService.onStartCommand()", Toast.LENGTH_SHORT).show()
         try {
             startForeground(NOTIFICATION_ID, buildNotification())
-            Toast.makeText(this, "⏱ startForeground() OK", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Log.e(TAG, "startForeground FAILED", e)
             TimerForegroundModule.reportServiceError(e.message ?: e.toString())
-            Toast.makeText(this, "⏱ startForeground FALHOU: ${e.message}", Toast.LENGTH_LONG).show()
             stopSelf()
         }
         return START_NOT_STICKY
