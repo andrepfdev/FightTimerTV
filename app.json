@@ -1,4 +1,9 @@
 {
   "name": "FightTimerTV",
-  "displayName": "FightTimerTV"
+  "displayName": "FightTimerTV",
+  "extra": {
+    "eas": {
+      "projectId": "5f5f6e72-ad6e-45cd-8b4e-0a2493ffbdab"
+    }
+  }
 }
