@@ -57,6 +57,7 @@ export default function TimerScreen() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [backgroundWarning, setBackgroundWarning] = useState(false);
   const [foregroundServiceError, setForegroundServiceError] = useState<string | null>(null);
+  const [foregroundModuleDebug, setForegroundModuleDebug] = useState<string>('verificando...');
 
   // Impede a tela de apagar sozinha durante o uso — o timer só avança de
   // fato enquanto o app está em foreground, então apagar a tela derrubaria
@@ -69,6 +70,23 @@ export default function TimerScreen() {
     return () => server.stop();
   }, [server]);
 
+  // Diagnóstico: checar se o módulo nativo TimerForeground existe.
+  // Mostra o resultado na tela do setup pra depurar sem adb logcat.
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      setForegroundModuleDebug('N/A (iOS)');
+      return;
+    }
+    const mod = NativeModules.TimerForeground;
+    if (mod == null) {
+      setForegroundModuleDebug('❌ NativeModules.TimerForeground é undefined/null');
+    } else if (typeof mod.start !== 'function') {
+      setForegroundModuleDebug(`⚠️ Módulo existe mas .start não é function (tipo: ${typeof mod.start})`);
+    } else {
+      setForegroundModuleDebug('✅ Módulo OK — .start() é function');
+    }
+  }, []);
+
   // Foreground service nativo (Android only, ver TimerForegroundService.kt):
   // mantém o processo com prioridade alta enquanto uma luta está rodando,
   // pra o Android não suspender o tick/servidor HTTP quando o usuário
@@ -78,11 +96,14 @@ export default function TimerScreen() {
   // sendo a única rede de segurança.
   useEffect(() => {
     if (Platform.OS !== 'android' || screen !== 'run') return;
-    NativeModules.TimerForeground?.start()
-      .then(() => setForegroundServiceError(null))
-      .catch((err: Error) => setForegroundServiceError(err.message));
+    const mod = NativeModules.TimerForeground;
+    if (mod?.start) {
+      mod.start()
+        .then(() => setForegroundServiceError(null))
+        .catch((err: Error) => setForegroundServiceError(err.message));
+    }
     return () => {
-      NativeModules.TimerForeground?.stop().catch(() => {});
+      mod?.stop?.().catch(() => {});
     };
   }, [screen]);
 
@@ -285,6 +306,9 @@ export default function TimerScreen() {
           <Text style={styles.tvHint}>
             Não minimize o app nem deixe a tela apagar durante a luta — o
             cronômetro só avança enquanto o app está em primeiro plano.
+          </Text>
+          <Text style={[styles.errorText, { marginTop: 16 }]}>
+            Debug foreground: {foregroundModuleDebug}
           </Text>
           {serverError && (
             <Text style={styles.errorText}>{serverError}</Text>

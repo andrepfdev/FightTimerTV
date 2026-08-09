@@ -2,10 +2,14 @@ package com.fighttimertv
 
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.module.annotations.ReactModule
 
 /**
  * Ponte JS -> Android pro TimerForegroundService. Chamado de
@@ -18,13 +22,26 @@ import com.facebook.react.bridge.ReactMethod
  * serviço falhava silenciosamente, sem notificação nenhuma) e isso
  * custou um ciclo de depuração inteiro sem conseguir ver o motivo.
  */
+@ReactModule(name = TimerForegroundModule.NAME)
 class TimerForegroundModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
-    override fun getName(): String = "TimerForeground"
+    companion object {
+        const val NAME = "TimerForeground"
+        private var lastServiceError: String? = null
+
+        fun reportServiceError(msg: String) {
+            lastServiceError = msg
+        }
+
+        fun consumeServiceError(): String? = lastServiceError?.also { lastServiceError = null }
+    }
+
+    override fun getName(): String = NAME
 
     @ReactMethod
     fun start(promise: Promise) {
+        Toast.makeText(reactApplicationContext, "⏱ TimerForeground.start() chamado", Toast.LENGTH_SHORT).show()
         try {
             val context = reactApplicationContext
             val intent = Intent(context, TimerForegroundService::class.java)
@@ -33,11 +50,22 @@ class TimerForegroundModule(reactContext: ReactApplicationContext) :
             } else {
                 context.startService(intent)
             }
-            promise.resolve(null)
+            Toast.makeText(reactApplicationContext, "⏱ startForegroundService() retornou, aguardando serviço", Toast.LENGTH_SHORT).show()
+            // Dar 800ms pro serviço tentar startForeground() antes de resolver.
+            // Se startForeground() falhar, o serviço loga o erro via
+            // reportServiceError() e chamamos stopSelf() — captamos aqui.
+            Handler(Looper.getMainLooper()).postDelayed({
+                val err = consumeServiceError()
+                if (err != null) {
+                    Toast.makeText(reactApplicationContext, "⏱ Serviço falhou: $err", Toast.LENGTH_LONG).show()
+                    promise.reject("foreground_start_failed", err)
+                } else {
+                    Toast.makeText(reactApplicationContext, "⏱ Serviço OK", Toast.LENGTH_SHORT).show()
+                    promise.resolve(null)
+                }
+            }, 800)
         } catch (e: Exception) {
-            // Não derruba o app (o app continua funcionando normalmente,
-            // só sem a proteção extra de foreground service), mas o erro
-            // de verdade chega até o JS pra poder ser mostrado na tela.
+            Toast.makeText(reactApplicationContext, "⏱ ERRO no start: ${e.message}", Toast.LENGTH_LONG).show()
             promise.reject("foreground_service_start_failed", e.message ?: e.toString(), e)
         }
     }

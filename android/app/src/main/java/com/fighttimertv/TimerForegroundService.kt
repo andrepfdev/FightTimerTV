@@ -7,6 +7,9 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
+import android.widget.Toast
+import com.fighttimertv.R
 
 /**
  * Serviço de foreground puro (sem lógica própria — o cronômetro e o
@@ -23,6 +26,7 @@ import android.os.IBinder
 class TimerForegroundService : Service() {
 
     companion object {
+        private const val TAG = "TimerForeground"
         private const val CHANNEL_ID = "fight_timer_running"
         private const val NOTIFICATION_ID = 1
     }
@@ -30,15 +34,14 @@ class TimerForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Isso é uma melhoria de confiabilidade, não algo essencial pro
-        // app funcionar — nunca pode derrubar o app inteiro. Já
-        // aconteceu de verdade (tipo "connectedDevice" lançava exceção
-        // não tratada em Android 14+ e fechava o app ao apertar
-        // "INICIAR"); com "specialUse" isso não deveria mais acontecer,
-        // mas o try/catch fica como rede de segurança permanente.
+        Toast.makeText(this, "⏱ TimerForegroundService.onStartCommand()", Toast.LENGTH_SHORT).show()
         try {
             startForeground(NOTIFICATION_ID, buildNotification())
+            Toast.makeText(this, "⏱ startForeground() OK", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
+            Log.e(TAG, "startForeground FAILED", e)
+            TimerForegroundModule.reportServiceError(e.message ?: e.toString())
+            Toast.makeText(this, "⏱ startForeground FALHOU: ${e.message}", Toast.LENGTH_LONG).show()
             stopSelf()
         }
         return START_NOT_STICKY
@@ -65,7 +68,7 @@ class TimerForegroundService : Service() {
         builder
             .setContentTitle("Fight Timer TV")
             .setContentText("Cronômetro ativo — transmitindo para a TV")
-            .setSmallIcon(applicationInfo.icon)
+            .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
 
         return builder.build()
