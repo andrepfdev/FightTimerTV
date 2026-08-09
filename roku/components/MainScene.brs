@@ -1,6 +1,8 @@
-' Cena principal: liga PollTask a /state, aplica o estado recebido na UI
-' e decide quando tocar o sino — espelha applyState()/maybePlayBell()/
-' poll() de src/receiver/receiverHtml.ts, adaptado pra SceneGraph.
+' Cena principal: liga PollTask a /state, guarda o *cache* do cronograma
+' (schedule + elapsedMs + relógio do servidor) e, a partir daí, deriva o
+' tempo a cada tick pelo relógio de parede local — mesmo que o celular
+' congele em background e o polling pare de responder, o canal continua
+' contando sozinho. Espelha o receiverHtml.ts, adaptado pra SceneGraph.
 '
 ' O teclado de IP:porta é gerenciado inteiramente aqui (ver comentário
 ' no MainScene.xml) com destaque manual de tecla, sem setFocus() nativo
@@ -17,19 +19,20 @@ sub init()
     m.doneSub = m.top.findNode("doneSub")
     m.pollTask = m.top.findNode("pollTask")
     m.bellAudio = m.top.findNode("bellAudio")
+    m.clockTickTimer = m.top.findNode("clockTickTimer")
 
     ' Nós de Font customizados (size grande) renderizaram como quadrados
     ' vazios ("tofu") em teste real na Roku — confirmado visualmente pelo
     ' usuário. Voltamos pra fonte padrão do sistema (sem `font=`), que já
-    ' provou renderizar texto normalmente. Ajustar tamanho fica pra depois,
-    ' com mais cautela — funcionar é prioridade sobre o número gigante por
-    ' ora.
+    ' provou renderizar texto normalmente.
     setupIpEntry()
 
     m.prevState = invalid
     m.failCount = 0
+    m.cache = invalid ' { state, rxSec }: último /state + nosso epoch-sec no rx
 
     m.pollTask.observeField("response", "onPollResponse")
+    m.clockTickTimer.observeField("fire", "onClockTick")
 
     reg = CreateObject("roRegistrySection", "FightTimerTV")
     savedAddr = reg.Read("serverAddress")
@@ -40,9 +43,7 @@ sub init()
     end if
 
     ' setFocus() chamado durante a construção da cena (antes de
-    ' roSGScreen.show() rodar) falha — confirmado em teste real. Esse
-    ' timer adia a única tentativa de foco da cena pra depois dela já
-    ' estar de fato na tela.
+    ' roSGScreen.show() rodar) falha — confirmado em teste real.
     m.initialFocusTimer = m.top.findNode("initialFocusTimer")
     m.initialFocusTimer.observeField("fire", "onInitialFocusTimer")
     m.initialFocusTimer.control = "start"
@@ -61,15 +62,92 @@ sub startPolling(addr as String)
     m.pollTask.uri = "http://" + addr + "/state"
     m.pollTask.control = "RUN"
     m.roundIndicator.text = "Aguardando o celular…"
+    m.clockTickTimer.control = "start"
+end sub
+
+' ═══════════════ Relógio de parede: deriva o estado do cache local ═══════════════
+' O celular manda no /state: schedule (cronograma completo), elapsedMs
+' (quanto de luta já rodou até ali). Guardamos também o nosso rxSec (epoch
+' em SECONDS no instante do recebimento). Em qualquer momento depois:
+'   elapsedMs = cache.elapsedMs + (epochSec() - cache.rxSec) * 1000
+' A matemática usa só DELTAS do nosso próprio relógio (seconds, cabe em
+' Integer32) — nunca soma epoch absoluto em ms, que estouraria 32 bits.
+' Isso funciona mesmo se o polling parar de vir: o celular congelado em
+' background deixa de responder, mas a TV segue derivando do relógio.
+
+function epochSec() as Integer
+    return CreateObject("roDateTime").AsSeconds()
+end function
+
+' Caminha no cronograma absoluto e devolve a fase atual — espelho do
+' phaseAtElapsedMs() do timerEngine.ts (mesmo algoritmo, BrightScript).
+function lookupPhase(elapsedMs as LongInteger) as Object
+    for each ph in m.cache.state.schedule
+        endMs = ph.startMs + ph.durMs
+        if elapsedMs < endMs
+            remMs = endMs - elapsedMs
+            secondsLeft = int(remMs / 1000)
+            if remMs mod 1000 <> 0 then secondsLeft = secondsLeft + 1
+            return {
+                done: false
+                currentRound: ph.round
+                isRest: (ph.kind = "rest")
+                phaseKind: ph.kind
+                secondsLeft: secondsLeft
+                totalPhaseMs: ph.durMs
+            }
+        end if
+    end for
+    return { done: true, currentRound: 0, isRest: false, phaseKind: "round", secondsLeft: 0, totalPhaseMs: 0 }
+end function
+
+' Deriva o estado atual do cache local + relógio de parede, ou devolve o
+' cache puro quando não há como derivar (idle/paused/done).
+function deriveState()
+    if m.cache = invalid then return invalid
+    st = m.cache.state
+    if st.phase = "idle" then return st
+    if st.paused or not st.running then return st
+
+    elapsedMs = st.elapsedMs + (epochSec() - m.cache.rxSec) * 1000
+    snap = lookupPhase(elapsedMs)
+
+    result = { }
+    result.totalRounds = st.totalRounds
+    result.soundOn = st.soundOn
+    result.schedule = st.schedule
+    if snap.done
+        result.seconds = 0
+        result.totalTime = 0
+        result.running = false
+        result.paused = false
+        result.phase = "done"
+        result.currentRound = st.totalRounds
+    else
+        result.seconds = snap.secondsLeft
+        result.totalTime = int(snap.totalPhaseMs / 1000)
+        result.running = true
+        result.paused = false
+        result.currentRound = snap.currentRound
+        if snap.isRest
+            result.phase = "rest"
+        else
+            result.phase = "round"
+        end if
+    end if
+    return result
+end function
+
+sub onClockTick()
+    if m.cache = invalid then return
+    state = deriveState()
+    if state <> invalid then applyState(state)
 end sub
 
 ' ═══════════════ Endereço do celular: 4 spinners + porta fixa 8080 ═══════════════
 ' Sem teclado nenhum: cima/baixo sobe/desce o valor do campo atual (0 a
 ' 255, com wrap), esquerda/direita troca de campo, OK confirma o
-' endereço inteiro. Muito mais direto num controle de TV do que digitar
-' caractere por caractere — e evita de vez bugs de digitação de "."/":"
-' que apareceram nas versões anteriores. Porta sempre 8080 (fixa, igual
-' ao SERVER_PORT do app RN), nunca editável.
+' endereço inteiro. O 8080 é fixo (SERVER_PORT do app RN).
 
 sub setupIpEntry()
     m.ipEntryGroup = m.top.findNode("ipEntryGroup")
@@ -80,15 +158,8 @@ sub setupIpEntry()
         m.top.findNode("octet3")
     ]
 
-    ' Palpite de rede doméstica típica (192.168.0.x) — só o último
-    ' número costuma precisar mudar de dispositivo pra dispositivo.
     m.octetIndex = 3
     m.octets = [192, 168, 0, 1]
-    ' Precisa existir desde já: quando há endereço salvo, startPolling()
-    ' roda direto no init() sem nunca passar por showIpEntry(), e sem
-    ' isso m.ipEntryVisible fica Invalid — "not Invalid" quebra o app
-    ' (confirmado em teste real: crash silencioso no primeiro poll com
-    ' falha).
     m.ipEntryVisible = false
 end sub
 
@@ -104,8 +175,6 @@ sub hideIpEntry()
     m.ipEntryGroup.visible = false
 end sub
 
-' Campo ativo fica amarelo; os outros, branco — dá pra ver claramente
-' qual campo cima/baixo vai alterar.
 sub renderOctets()
     for i = 0 to 3
         m.octetLabels[i].text = intStr(m.octets[i])
@@ -135,15 +204,12 @@ sub submitIpEntry()
     reg = CreateObject("roRegistrySection", "FightTimerTV")
     reg.Write("serverAddress", addr)
     reg.Flush()
+    m.serverAddress = addr
     hideIpEntry()
     startPolling(addr)
 end sub
 
-' Botão "*" (info) do controle reabre a configuração, pra trocar de
-' celular sem precisar reinstalar o canal. Além disso, se ficar muitos
-' polls seguidos falhando (endereço errado, celular fora do ar), reabre
-' sozinho — o usuário não fica preso numa tela sem reação nenhuma.
-function onKeyEvent(key as String, press as Boolean) as Boolean
+function onKeyEvent(key as String, press as boolean) as Boolean
     if not press then return false
 
     if m.ipEntryVisible
@@ -183,9 +249,6 @@ sub onPollResponse()
         if m.failCount >= 3
             m.offlineBanner.visible = true
         end if
-        ' ~15s de falhas seguidas (endereço errado/celular fora do ar):
-        ' reabre a tela de configuração sozinho, em vez de deixar o
-        ' usuário preso numa tela sem nenhuma reação.
         if m.failCount >= 15 and not m.ipEntryVisible
             showIpEntry()
         end if
@@ -197,7 +260,20 @@ sub onPollResponse()
 
     m.failCount = 0
     m.offlineBanner.visible = false
-    applyState(state)
+    storeCache(state)
+    refreshFromCache()
+end sub
+
+sub storeCache(state as Object)
+    m.cache = {
+        state: state
+        rxSec: epochSec()
+    }
+end sub
+
+sub refreshFromCache()
+    state = deriveState()
+    if state <> invalid then applyState(state)
 end sub
 
 sub applyState(state as Object)
@@ -210,8 +286,7 @@ sub applyState(state as Object)
     running = state.running
     if running = invalid then running = false
 
-    m.bigTimer.text = pad(Int(seconds / 60)) + ":" + pad(seconds mod 60)
-    m.bigTimer.color = "0xC8F400FF"
+    m.bigTimer.text = pad(int(seconds / 60)) + ":" + pad(seconds mod 60)
 
     if phase = "idle"
         m.roundIndicator.text = "Aguardando início no celular"
@@ -221,7 +296,11 @@ sub applyState(state as Object)
         m.bigTimer.color = "0x666666FF"
     else if phase = "round"
         m.roundIndicator.text = "ROUND " + intStr(currentRound) + " / " + intStr(totalRounds)
+        m.bigTimer.color = "0xC8F400FF"
         if seconds <= 10 then m.bigTimer.color = "0xFF4444FF"
+    else if phase = "done"
+        m.roundIndicator.text = "FIM!"
+        m.bigTimer.color = "0xC8F400FF"
     end if
 
     pct = 0
@@ -247,9 +326,7 @@ sub applyState(state as Object)
     maybePlayBell(seconds, totalTime, phase, running)
 end sub
 
-' Mesma detecção de transição do maybePlayBell() de receiverHtml.ts:
-' início de round toca o sino cheio, aviso aos 10s toca o tique curto,
-' fim de round/treino toca o sino cheio de novo.
+' Mesma detecção de transição do maybePlayBell() do receiverHtml.ts.
 sub maybePlayBell(seconds as Integer, totalTime as Integer, phase as String, running as Boolean)
     if m.prevState = invalid
         m.prevState = { seconds: seconds, totalTime: totalTime, phase: phase, running: running }
@@ -263,8 +340,6 @@ sub maybePlayBell(seconds as Integer, totalTime as Integer, phase as String, run
     warning = (phase = "round" and running and seconds = 10 and prev.seconds <> 10)
     roundEnded = (prev.phase = "round" and phase <> "round" and phase <> "done")
 
-    ' Sons distintos pra início e fim (igual ao playBell(1) vs playBell(3)
-    ' do receiverHtml.ts original: início é 1 batida, fim é 3 batidas).
     if enteredDone or roundEnded
         playSound("pkg:/audio/bell_end.mp3")
     else if startedRound
@@ -299,11 +374,8 @@ function pad(n as Integer) as String
 end function
 
 ' Confere se o endereço salvo no registro tem o formato
-' "N.N.N.N:8080" antes de confiar nele — evita ficar preso repetindo
-' pra sempre um valor corrompido de uma sessão anterior (aconteceu de
-' verdade em teste: um endereço com ":" no lugar de "." travava o app
-' sem nenhuma forma de sair, até esse crash ser corrigido).
-function isValidAddress(addr as String) as Boolean
+' "N.N.N.N:8080" antes de confiar nele.
+function isValidAddress(addr as String) as boolean
     parts = addr.Split(":")
     if parts.count() <> 2 then return false
     if parts[1] <> "8080" then return false

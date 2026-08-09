@@ -283,25 +283,101 @@ export const RECEIVER_HTML = `<!DOCTYPE html>
   // Desbloqueia o AudioContext no primeiro toque/clique na TV (autoplay policy)
   document.addEventListener('click', function () { try { getCtx().resume(); } catch (e) {} }, { once: true });
 
-  // ── Polling + reflexo do estado remoto ──
+  // ── Polling + relógio de parede ──
+  // A fonte de verdade NUNCA é "decrementar um contador no recebedor": a
+  // página guarda um cache com o cronograma inteiro (schedule), quanto
+  // tempo de luta já rodou (elapsedMs) e o instante do relógio do celular
+  // em que o cache foi gravado (serverNowMs). A partir daí, enquanto o
+  // fetch funcionar, o relógio da TV corrige o erro de offset entre os dois
+  // dispositivos a cada poll. Se o celular congelar em background, a TV
+  // continua sozinha: elapsedMs deriva do próprio Date.now()+offset, sem
+  // depender do polling para nenhum cálculo de tempo.
   var POLL_MS = 300;
+  var TICK_MS = 250;
   var failCount = 0;
-  var prev = null; // último estado conhecido, p/ detectar transições e tocar o sino
+  var prev = null; // último estado APLICADO, p/ detectar transições e tocar o sino
+
+  // cache = { seconds, totalTime, running, paused, phase, currentRound,
+  //   totalRounds, elapsedMs, serverNowMs, rxNowMs (relógio local no rx),
+  //   roundTimeSec, breakTimeSec, schedule }
+  var cache = null;
 
   function setOffline(offline) {
     offlineEl.classList.toggle('visible', offline);
   }
 
+  function nowServerMs() {
+    if (!cache) return 0;
+    // offset = relógio da TV - relógio do celular no último poll; reaplica
+    // ao "agora local" pra voltar pra escala de tempo do servidor.
+    return Date.now() + (cache.serverNowMs - cache.rxNowMs);
+  }
+
+  // Equivale ao phaseAtElapsedMs() do timerEngine (duplicado aqui porque a
+  // página é HTML estático sem imports): caminha no cronograma absoluto e
+  // devolve em que fase/round estamos e quanto falta.
+  function phaseAtElapsedMs(schedule, elapsedMs) {
+    var clamped = Math.max(0, elapsedMs);
+    for (var i = 0; i < schedule.length; i++) {
+      var ph = schedule[i];
+      var endMs = ph.startMs + ph.durMs;
+      if (clamped < endMs) {
+        return {
+          done: false,
+          currentRound: ph.round,
+          isRest: ph.kind === 'rest',
+          phaseKind: ph.kind,
+          secondsLeft: Math.max(0, Math.ceil((endMs - clamped) / 1000)),
+          totalPhaseMs: ph.durMs,
+          elapsedPhaseMs: clamped - ph.startMs,
+        };
+      }
+    }
+    return { done: true, currentRound: 0, isRest: false, phaseKind: 'round', secondsLeft: 0, totalPhaseMs: 0, elapsedPhaseMs: 0 };
+  }
+
+  // Deriva o estado atual a partir do cache + relógio de parede. Se não
+  // houver como derivar (idle/done/paused), devolve o cache como estava.
+  function deriveState() {
+    if (!cache) return null;
+    var st = cache;
+    var elapsedMs = st.elapsedMs;
+
+    if (st.phase === 'idle') return st;
+    if (st.paused || !st.running) return st;
+
+    elapsedMs = st.elapsedMs + (nowServerMs() - st.serverNowMs);
+
+    var snap = phaseAtElapsedMs(st.schedule, elapsedMs);
+    if (snap.done) {
+      return {
+        seconds: 0, totalTime: 0, running: false, paused: false,
+        phase: 'done', currentRound: st.totalRounds, totalRounds: st.totalRounds,
+        soundOn: st.soundOn, elapsedMs: elapsedMs, serverNowMs: 0, rxNowMs: 0,
+        roundTimeSec: st.roundTimeSec, breakTimeSec: st.breakTimeSec, schedule: st.schedule,
+      };
+    }
+    return {
+      seconds: snap.secondsLeft, totalTime: Math.round(snap.totalPhaseMs / 1000),
+      running: true, paused: false,
+      phase: snap.isRest ? 'rest' : 'round',
+      currentRound: snap.currentRound,
+      totalRounds: st.totalRounds,
+      soundOn: st.soundOn, elapsedMs: elapsedMs, serverNowMs: 0, rxNowMs: 0,
+      roundTimeSec: st.roundTimeSec, breakTimeSec: st.breakTimeSec, schedule: st.schedule,
+    };
+  }
+
   function maybePlayBell(state) {
+    var prevPhase = prev ? prev.phase : null;
+
     if (!prev) { prev = state; return; }
 
-    var startedRound = state.phase === 'round' && state.running &&
-      state.seconds === state.totalTime &&
-      !(prev.phase === 'round' && prev.running && prev.seconds === prev.totalTime);
-    var enteredDone = state.phase === 'done' && prev.phase !== 'done';
-    var warning = state.phase === 'round' && state.running &&
-      state.seconds === 10 && prev.seconds !== 10;
-    var roundEnded = prev.phase === 'round' && state.phase !== 'round' && state.phase !== 'done';
+    var startedRound = state.phase === 'round' && state.seconds === state.totalTime &&
+      !(prevPhase === 'round' && prev.seconds === prev.totalTime);
+    var enteredDone = state.phase === 'done' && prevPhase !== 'done';
+    var warning = state.phase === 'round' && state.seconds === 10 && prev.seconds !== 10;
+    var roundEnded = prevPhase === 'round' && state.phase !== 'round' && state.phase !== 'done';
 
     if (enteredDone) playBell(3);
     else if (roundEnded) playBell(3);
@@ -343,23 +419,49 @@ export const RECEIVER_HTML = `<!DOCTYPE html>
     maybePlayBell(state);
   }
 
+  // Aplica o estado derivado a cada tick — mesmo que o polling falhe (o
+  // cache guardado continua alimentando o relógio de parede da TV).
+  function refresh() {
+    var state = deriveState();
+    if (state) applyState(state);
+  }
+
   function poll() {
     fetch('/state', { cache: 'no-store' })
       .then(function (res) { return res.json(); })
       .then(function (state) {
         failCount = 0;
         setOffline(false);
-        applyState(state);
+        cache = {
+          seconds: state.seconds,
+          paused: state.paused,
+          phase: state.phase,
+          currentRound: state.currentRound,
+          totalRounds: state.totalRounds,
+          elapsedMs: state.elapsedMs,
+          serverNowMs: state.serverNowMs,
+          rxNowMs: Date.now(),
+          roundTimeSec: state.roundTimeSec,
+          breakTimeSec: state.breakTimeSec,
+          schedule: state.schedule,
+          totalTime: state.totalTime,
+          running: state.running,
+        };
+        // Redisk até o próximo poll (o refresh interval faz o resto).
+        refresh();
       })
       .catch(function () {
         failCount++;
         if (failCount >= 3) setOffline(true);
+        // Não para: o refresh() segue com o cache local.
       })
       .finally(function () {
         setTimeout(poll, POLL_MS);
       });
   }
 
+  // Tick local: deriva o tempo a cada 250ms mesmo sem polling novo.
+  setInterval(refresh, TICK_MS);
   poll();
 })();
 </script>

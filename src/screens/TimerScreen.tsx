@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AppState,
   NativeModules,
   Platform,
   ScrollView,
@@ -16,8 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useKeepAwake } from '@sayem314/react-native-keep-awake';
 import { NetworkInfo } from 'react-native-network-info';
 import QRCode from 'react-native-qrcode-svg';
-import { TimerServer, SERVER_PORT, Phase } from '../server/timerServer';
-import { advancePhase as computeAdvancePhase } from './timerEngine';
+import { TimerServer, SERVER_PORT } from '../server/timerServer';
+import { buildSchedulePhases, phaseAtElapsedMs } from './timerEngine';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
@@ -28,11 +27,16 @@ function mmss(totalSeconds: number): string {
 }
 
 /**
- * Motor de rounds/intervalo espelhando o comportamento do index.html
- * original (ct-timer): N rounds, cada um com duração `roundTimeSec`,
- * separados por um intervalo `breakTimeSec`. Nada é salvo em disco — tudo
- * em memória do componente, e refletido no servidor HTTP a cada mudança
- * para a TV puxar via polling.
+ * Motor de rounds/intervalo por **relógio de parede**:
+ *
+ * O estado guardado é apenas um par de âncoras (`anchorMs` em Date.now(),
+ * `anchorElapsedMs` = quanto tempo de luta já se passou naquele instante).
+ * Todas as leituras de tempo são DERIVADAS de Date.now() na hora — nunca
+ * uma variável decrementada por setInterval. Isso é o que garante que o
+ * cronômetro continue correto mesmo quando o Android congela o JS em
+ * background: quando o app volta, a derivação do relógio já está no ponto
+ * certo, e a TV/Roku (que guardaram o cache no /state) seguem contando do
+ * mesmo jeito sem precisar do celular.
  */
 export default function TimerScreen() {
   const server = useMemo(() => new TimerServer(), []);
@@ -53,15 +57,25 @@ export default function TimerScreen() {
   const [done, setDone] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [totalTime, setTotalTime] = useState(0);
+  const [, forceRender] = useState(0);
 
   const [serverError, setServerError] = useState<string | null>(null);
-  const [backgroundWarning, setBackgroundWarning] = useState(false);
   const [foregroundServiceError, setForegroundServiceError] = useState<string | null>(null);
   const [foregroundModuleDebug, setForegroundModuleDebug] = useState<string>('verificando...');
 
-  // Impede a tela de apagar sozinha durante o uso — o timer só avança de
-  // fato enquanto o app está em foreground, então apagar a tela derrubaria
-  // o tick e a TV perderia a conexão (ver CLAUDE.md).
+  // Relógio de parede: `anchorAndElapsed` em refs pra não disparar render.
+  const anchorMsRef = useRef(0); // Date.now() da (re)partida do segmento atual
+  const anchorElapsedMsRef = useRef(0); // tempo de luta já acumulado no âncora
+  const pausedElapsedMsRef = useRef(0); // tempo congelado enquanto pausado
+
+  function nowElapsedMs(): number {
+    if (paused) return pausedElapsedMsRef.current;
+    return anchorElapsedMsRef.current + (Date.now() - anchorMsRef.current);
+  }
+
+  // Impede a tela de apagar sozinha durante o uso — com background aberto
+  // por design. Mantido como melhor esforço (não é a fonte de verdade do
+  // tempo, só mantém o app visível).
   useKeepAwake();
 
   useEffect(() => {
@@ -71,7 +85,6 @@ export default function TimerScreen() {
   }, [server]);
 
   // Diagnóstico: checar se o módulo nativo TimerForeground existe.
-  // Mostra o resultado na tela do setup pra depurar sem adb logcat.
   useEffect(() => {
     if (Platform.OS !== 'android') {
       setForegroundModuleDebug('N/A (iOS)');
@@ -87,13 +100,10 @@ export default function TimerScreen() {
     }
   }, []);
 
-  // Foreground service nativo (Android only, ver TimerForegroundService.kt):
-  // mantém o processo com prioridade alta enquanto uma luta está rodando,
-  // pra o Android não suspender o tick/servidor HTTP quando o usuário
-  // minimiza o app de propósito. Ligado à tela 'run' inteira (rodando ou
-  // pausado), não só a rodadas ativas, pra não ter brecha entre pausar e
-  // minimizar. Sem equivalente no iOS ainda — lá o aviso abaixo continua
-  // sendo a única rede de segurança.
+  // Foreground service nativo (Android only): mantém o processo vivo e o
+  // que importa aqui, o servidor HTTP, respondendo enquanto o app está em
+  // background — mesmo sem JS, o /state devolve o valor derivado de
+  // Date.now(). A TV continua contando sozinha com o cache guardado.
   useEffect(() => {
     if (Platform.OS !== 'android' || screen !== 'run') return;
     const mod = NativeModules.TimerForeground;
@@ -107,76 +117,41 @@ export default function TimerScreen() {
     };
   }, [screen]);
 
-  // Rede de segurança: mesmo com o foreground service, o Android pode
-  // matar o processo em aparelhos muito agressivos com bateria (e no iOS
-  // não há foreground service nenhum ainda). Se o tick parar mesmo assim,
-  // avisamos que o tempo pode ter ficado impreciso em vez de fingir que
-  // nada aconteceu.
+  // Tick de re-exibição: só força re-render e calcula o tempo a partir do
+  // relógio de parede. Pode congelar em background: ao voltar, o próximo
+  // tick usa Date.now() e cai na coordenada certa do cronograma.
   useEffect(() => {
-    let wasBackground = false;
-    const sub = AppState.addEventListener('change', nextState => {
-      if (nextState === 'background' || nextState === 'inactive') {
-        wasBackground = true;
-      } else if (nextState === 'active' && wasBackground) {
-        wasBackground = false;
-        setBackgroundWarning(true);
-      }
-    });
-    return () => sub.remove();
-  }, []);
-
-  // Espelha o estado local no servidor a cada mudança relevante.
-  useEffect(() => {
-    const phase: Phase = done ? 'done' : screen === 'setup' ? 'idle' : isRest ? 'rest' : 'round';
-    server.update({
-      seconds: screen === 'setup' ? 0 : timeLeft,
-      totalTime: screen === 'setup' ? 0 : totalTime,
-      running: screen === 'run' && !paused && !done,
-      paused,
-      phase,
-      currentRound,
-      totalRounds,
-      soundOn: true,
-    });
-  }, [server, screen, timeLeft, totalTime, paused, done, isRest, currentRound, totalRounds]);
-
-  // Tick de 1s (só quando rodando e não pausado)
-  useEffect(() => {
-    if (screen !== 'run' || paused || done) return;
+    if (screen !== 'run') return;
     intervalRef.current = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          advancePhase();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+      tick();
+      forceRender(r => r + 1);
+    }, 500);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen, paused, done, isRest, currentRound]);
+  }, [screen, paused, done]);
 
-  function advancePhase() {
-    const result = computeAdvancePhase({
-      currentRound,
-      totalRounds,
-      isRest,
-      roundTimeSec,
-      breakTimeSec,
-    });
-    if (result.done) {
+  function tick() {
+    if (screen !== 'run' || paused || done) return;
+    const schedule = buildSchedulePhases(totalRounds, roundTimeSec, breakTimeSec);
+    const snap = phaseAtElapsedMs(schedule, nowElapsedMs());
+    if (snap.done) {
       setDone(true);
       return;
     }
-    setCurrentRound(result.currentRound);
-    setIsRest(result.isRest);
-    setTimeLeft(result.timeLeft);
-    setTotalTime(result.totalTime);
+    setCurrentRound(snap.currentRound);
+    setIsRest(snap.isRest);
+    setTimeLeft(snap.secondsLeft);
+    setTotalTime(Math.round(snap.totalPhaseMs / 1000));
   }
 
   const startTimer = () => {
+    server.setConfig({ totalRounds, roundTimeSec, breakTimeSec });
+    server.startFight();
+    anchorMsRef.current = Date.now();
+    anchorElapsedMsRef.current = 0;
+    pausedElapsedMsRef.current = 0;
     setCurrentRound(1);
     setIsRest(false);
     setPaused(false);
@@ -185,8 +160,20 @@ export default function TimerScreen() {
     setTotalTime(roundTimeSec);
     setScreen('run');
   };
-  const togglePause = () => setPaused(p => !p);
+  const togglePause = () => {
+    const next = !paused;
+    if (next) {
+      pausedElapsedMsRef.current = nowElapsedMs();
+      server.pause();
+    } else {
+      anchorElapsedMsRef.current = pausedElapsedMsRef.current;
+      anchorMsRef.current = Date.now();
+      server.resume();
+    }
+    setPaused(next);
+  };
   const backToSetup = () => {
+    server.reset();
     setScreen('setup');
     setDone(false);
     setPaused(false);
@@ -302,24 +289,18 @@ export default function TimerScreen() {
               <QRCode value={tvUrl} size={160} backgroundColor="#1a1a1a" color="#C8F400" />
             </View>
           )}
-          <Text style={styles.tvHint}>Celular e TV precisam estar na mesma rede Wi-Fi.</Text>
           <Text style={styles.tvHint}>
-            Não minimize o app nem deixe a tela apagar durante a luta — o
-            cronômetro só avança enquanto o app está em primeiro plano.
+            Celular e TV precisam estar na mesma rede Wi-Fi.
+          </Text>
+          <Text style={styles.tvHint}>
+            Pode minimizar o app durante a luta: a TV continua contando pelo
+            próprio relógio e o cronômetro volta certo no celular.
           </Text>
           <Text style={[styles.errorText, { marginTop: 16 }]}>
             Debug foreground: {foregroundModuleDebug}
           </Text>
           {serverError && (
             <Text style={styles.errorText}>{serverError}</Text>
-          )}
-          {backgroundWarning && (
-            <TouchableOpacity onPress={() => setBackgroundWarning(false)}>
-              <Text style={styles.warningText}>
-                O app ficou em segundo plano — o tempo pode ter ficado
-                impreciso. Toque para dispensar.
-              </Text>
-            </TouchableOpacity>
           )}
         </View>
       </ScrollView>
@@ -413,5 +394,4 @@ const styles = StyleSheet.create({
   qrWrap: { marginTop: 16, padding: 12, backgroundColor: DARK },
   tvHint: { color: '#555', fontSize: 11, marginTop: 12, textAlign: 'center' },
   errorText: { color: WARNING, fontSize: 12, marginTop: 12, textAlign: 'center' },
-  warningText: { color: YELLOW, fontSize: 12, marginTop: 12, textAlign: 'center' },
 });

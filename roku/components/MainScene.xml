@@ -146,6 +146,11 @@
              única) tentativa de foco da cena pra depois dela já estar
              de fato na tela. -->
         <Timer id="initialFocusTimer" duration="0.3" repeat="false" />
+        <!-- Tick de relógio de parede: re-deriva o tempo a cada 250ms a
+             partir do cache local (cronograma + elapsedMs + offset),
+             mesmo quando o polling não responde mais porque o celular
+             congelou em background. -->
+        <Timer id="clockTickTimer" duration="0.25" repeat="true" />
     </children>
 
     <script type="text/brightscript" uri="pkg:/components/MainScene.brs" />
