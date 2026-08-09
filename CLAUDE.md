@@ -60,16 +60,25 @@ projeto novo e separado, não uma modificação daquele.
 App.tsx                        — entry point, monta <TimerScreen/>
 src/screens/TimerScreen.tsx    — motor de rounds/intervalo (setup + run,
                                   idêntico em comportamento ao index.html
-                                  original), IP local + QR code
-src/screens/timerEngine.ts     — advancePhase() extraído como função pura
-                                  testável (ver src/screens/timerEngine.test.ts)
+                                  original), IP local + QR code. Tempo
+                                  sempre derivado de Date.now() (ver 8ª
+                                  decisão) — o tick de 500ms só re-renderiza
+src/screens/timerEngine.ts     — lógica pura testável: advancePhase() (algo
+                                  clássico) + buildSchedulePhases()/
+                                  phaseAtElapsedMs() que derivam a fase a
+                                  partir de quanto tempo de luta JÁ PASSOU
+                                  (ver 8ª decisão e timerEngine.test.ts)
 src/server/timerServer.ts      — servidor HTTP embutido (porta 8080),
                                   GET / (página da TV) e GET /state (JSON:
-                                  seconds/totalTime/phase/currentRound/…)
+                                  seconds/elapsedMs/serverNowMs/schedule/…).
+                                  O estado é ancorado em Date.now() — cada
+                                  resposta deriva a fase na hora
 src/receiver/receiverHtml.ts   — HTML/CSS/JS estático servido para a TV:
                                   layout + sino (Web Audio) copiados quase
                                   1:1 do index.html original, dirigidos por
-                                  polling em /state a cada 300ms
+                                  polling em /state (300ms) + relógio de
+                                  parede local: guarda schedule+elapsedMs em
+                                  cache e segue contando sozinho (ver 8ª)
 src/receiver/bebasNeueFont.ts  — fonte Bebas Neue embutida em base64
                                   (copiada de ct-timer/fonts/)
 android/…, ios/…               — permissões já configuradas (ver README.md)
@@ -121,12 +130,41 @@ numa tela própria (`roku/components/IpEntry.*`), salvo em
 `roRegistrySection` pra não perguntar de novo — reabre com o botão `*`
 do controle.
 
+## 8ª decisão: tempo derivado de relógio de parede, não de contador
+
+Sessões passadas tentaram (1) foreground service e (2) compensação de tempo
+via `AppState` — a compensação "avançava X segundos ao voltar", o que
+funcionava mal em transições de fase e ainda deixava a TV congelada em
+background. A solução definitiva, **testada em hardware real com sucesso**
+(celular em 2º plano + TV sincronizada), foi abandonar a contagem
+decrementada por `setInterval`:
+
+- **`TimerScreen.tsx` e `timerServer.ts`** guardam apenas **âncoras de
+  relógio** (`startedAtMs` + tempo já acumulado; pause congela a âncora e
+  resume move-a). Cada `GET /state` é respondido **na hora**, derivando
+  `seconds`/`phase`/`currentRound` de `Date.now()` — se o JS do celular
+  congelar por 3 minutos, uma resposta que consiga sair já volta correta.
+- O `TimerScreen` nem precisa de compensação: o tick de 500ms só força
+  re-render e lê `Date.now()`; ao voltar do background o cálculo (função
+  pura `phaseAtElapsedMs`) cai direto na coordenada certa do cronograma.
+- **`receiverHtml.ts` e canal Roku** guardam um **cache local**
+  (`schedule` + `elapsedMs` + relógio local) e continuam contando pelo
+  próprio relógio mesmo que o polling do celular pare — o sino (Web Audio
+  na página, WAV no Roku) dispara localmente pela mesma derivação.
+
+**Não reverter para contador** sem entender: a "solução" anterior de
+compensar segundos na volta (`AppState` listener + `advancePhase` manual)
+foi tentada e **abandonada** por resolver ~metade do problema. A forma
+correta é sempre derivar de `Date.now()` — ver `phaseAtElapsedMs()` e como
+o receiver cacheids o cronograma.
+
 ## Estado atual / próximos passos
 
 - **Testado em Android físico com sucesso**: build release (`assembleRelease`,
   standalone, JS embutido) instalada e rodando; rotação livre
-  (`fullSensor`) e o link "reiniciar configuração" durante o run também
-  validados nessa sessão.
+  (`fullSensor`), link "reiniciar configuração" durante o run, e — nesta
+  última rodada — **app minimizado em background continua contando e a TV
+  fica sincronizada** (testado e aprovado pelo usuário).
 - iOS: só landscape liberado no `Info.plist`, **nunca testado** em
   dispositivo (usuário só tem Android à mão até agora).
 - Canal Roku (`roku/`) está **escrito mas ainda não sideloaded/testado**
