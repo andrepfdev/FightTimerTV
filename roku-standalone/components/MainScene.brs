@@ -13,11 +13,10 @@
 ' padrão do ipEntryGroup do canal original.
 
 sub init()
-    ' Mesmo bug/fix do canal com celular (ver roku/components/MainScene.brs):
-    ' sem isso a Roku entra no descanso de tela sozinha mesmo com o timer
-    ' rodando, já que ninguém toca no controle durante uma luta inteira.
-    CreateObject("roAppManager").EnableScreenSaver(false)
-
+    ' NUNCA criar `roAppManager` aqui — ver comentário completo em
+    ' roku/source/main.brs (mesma tentativa abandonada no canal com
+    ' celular, duas variantes diferentes, ambas quebraram em hardware
+    ' real).
     m.background = m.top.findNode("background")
     m.logo = m.top.findNode("logo")
     m.roundIndicator = m.top.findNode("roundIndicator")

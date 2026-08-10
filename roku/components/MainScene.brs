@@ -9,15 +9,12 @@
 ' por tecla — só a cena em si recebe foco uma vez, no início.
 
 sub init()
-    ' Sem isso, a Roku entra no descanso de tela (screensaver) sozinha
-    ' depois de um tempo sem toque no controle — mesmo com o timer
-    ' contando ativamente na tela. Bug real encontrado em teste real
-    ' (não reintroduzir): o app é de "só olhar", ninguém mexe no
-    ' controle durante uma luta inteira, então o screensaver ativa no
-    ' pior momento possível. `EnableScreenSaver(false)` desativa isso
-    ' enquanto o canal estiver em primeiro plano.
-    CreateObject("roAppManager").EnableScreenSaver(false)
-
+    ' NUNCA criar `roAppManager` aqui — ver comentário completo em
+    ' source/main.brs sobre a tentativa (com duas variantes) de suprimir
+    ' o protetor de tela, ambas abandonadas: `roAppManager` é
+    ' "MAIN|TASK-only" (crasha com tela preta se criado na RENDER thread
+    ' de uma Scene) e, além disso, a Roku descontinuou o único método
+    ' que serviria pra isso.
     m.background = m.top.findNode("background")
     m.logo = m.top.findNode("logo")
     m.roundIndicator = m.top.findNode("roundIndicator")

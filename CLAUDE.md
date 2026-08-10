@@ -361,8 +361,18 @@ raiz, fontes com `uri` real) foram respeitados desde o primeiro rascunho
 do novo canal.
 
 **Testado em hardware real numa sessão posterior** (mesma Roku TV AOC,
-`192.168.0.18`) — sideload funcionou lado a lado com `roku/`
-(confirmado: dois canais distintos, "CT Timer" e "CT Timer Standalone").
+`192.168.0.18`) — sideload funciona.
+
+**Correção importante (erro meu, documentado errado inicialmente)**: o
+Developer Mode da Roku só mantém **um slot de canal "Dev" por vez** —
+sideload de `roku-standalone/` e de `roku/` **não convivem** como dois
+canais separados; o segundo `.zip` instalado sempre substitui o
+primeiro no mesmo slot. "Dois canais distintos ao mesmo tempo" só é
+possível publicando os dois como Beta App (`.pkg` assinado, código de
+acesso) — ver README.md. Isso já causou confusão real numa sessão (eu
+reinstalei `roku/` por cima do `roku-standalone/` sem perceber que
+sobrescrevia, e o usuário testou achando que era o standalone). Ver
+também [DISPOSITIVOS-SUPORTADOS.md](DISPOSITIVOS-SUPORTADOS.md).
 
 ### Bug real encontrado e corrigido: `CLng()` não existe em BrightScript
 
@@ -532,6 +542,48 @@ fechando o app durante a corrida, banner aparecendo no launcher.
 - Página HTML (`receiverHtml.ts`) pra outras Smart TVs (Samsung, LG,
   Android TV, Fire TV) **nunca foi validada em TV real** ainda — só o
   canal Roku e o app Android foram testados fisicamente até agora.
+
+## 14ª decisão: protetor de tela da Roku — sem API suportada, ajuste é no sistema
+
+Testando em hardware real, a Roku entrava no protetor de tela sozinha
+mesmo com o timer rodando ativamente (ninguém toca no controle durante
+uma luta inteira). **Duas tentativas de corrigir via BrightScript foram
+tentadas e abandonadas** (não reintroduzir, ver comentários em
+`roku/source/main.brs` e `roku-standalone/source/main.brs`):
+
+1. `CreateObject("roAppManager").EnableScreenSaver(false)` dentro do
+   `init()` da `MainScene` — **quebrou o app com tela preta** em
+   hardware real. Causa dupla: `roAppManager` é "MAIN|TASK-only" (não
+   pode ser criado na RENDER thread onde o `init()` de uma Scene roda —
+   erro `roAppManager: creating MAIN|TASK-only component failed on
+   RENDER thread`), e além disso **esse método não existe** na
+   interface `ifAppManager`.
+2. Movido pra `main.brs` (thread principal, resolvendo o problema de
+   thread) e trocado pra `appMan.UpdateLastKeyPressTime()` — **também
+   quebrou** (`Member function not found`). Motivo: esse método **foi
+   descontinuado pela Roku** (Roku OS 12+, "uso não é mais permitido"),
+   confirmado contra a lista literal e completa de métodos de
+   `ifAppManager` na documentação oficial atual — não sobrou nada
+   relacionado a controlar screensaver, só `GetScreensaverTimeout()`
+   (leitura).
+
+**Conclusão**: não existe hoje nenhuma API BrightScript suportada pra
+um canal comum impedir/adiar o protetor de tela do sistema. O ajuste
+real precisa ser feito pelo usuário nas **Configurações da própria
+Roku** (Sistema → Protetor de tela → aumentar o tempo ou desativar) —
+é uma configuração de dispositivo, não do app. Vale documentar isso no
+[DISPOSITIVOS-SUPORTADOS.md](DISPOSITIVOS-SUPORTADOS.md) como
+recomendação de uso.
+
+**Nota pra decisão equivalente no APK** (13ª decisão): lá o cenário é
+diferente — `useKeepAwake()` (`@sayem314/react-native-keep-awake`) é
+uma API real e documentada do próprio Android (equivalente a
+`FLAG_KEEP_SCREEN_ON`), já usada com sucesso na tela de celular
+(`TimerScreen.tsx`) e adicionada também em `TVTimerScreen.tsx` — essa
+correção é válida e não tem o mesmo problema de API inexistente/
+descontinuada que a Roku teve. Não testada ainda em hardware/emulador
+Android TV real, mas não há motivo pra suspeitar dela como se suspeitou
+do `roAppManager`.
 
 ## Ideias futuras: monetização (não iniciado, só registrado pra não perder contexto)
 

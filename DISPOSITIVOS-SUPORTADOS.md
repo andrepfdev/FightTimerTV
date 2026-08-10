@@ -33,7 +33,7 @@ tudo (rounds, pausa, etc.), a TV faz polling em `/state`.
 1. Ativar o Developer Mode na Roku (controle físico): **Home×3, Cima×2,
    Direita, Esquerda, Direita, Esquerda, Direita**. A tela mostra o IP
    da Roku e pede senha (usuário fixo `rokudev`).
-2. Instalar via `curl` (substitui a versão sideloaded anterior):
+2. Instalar via `curl`:
    ```bash
    curl --user rokudev:<senha> --anyauth -sS \
      -F "mysubmit=Install" -F "archive=@ct-timer-roku-standalone.zip" -F "passwd=" \
@@ -41,13 +41,27 @@ tudo (rounds, pausa, etc.), a TV faz polling em `/state`.
    ```
    (ou pelo navegador: abrir `http://<ip-da-roku>` e subir o `.zip` pela
    interface do Development Application Installer.)
-3. Pode instalar os dois zips na mesma Roku — aparecem como dois canais
-   separados ("CT Timer" e "CT Timer Standalone").
+
+**⚠️ Só dá pra ter UM dos dois instalado por vez.** Diferente do que uma
+versão anterior deste documento dizia, o Developer Mode da Roku mantém
+só **um slot de canal "Dev"** — instalar o outro `.zip` **substitui** o
+que já estava lá (mesmo canal, conteúdo trocado), não cria um segundo
+ícone. Pra ter os dois de verdade instalados ao mesmo tempo, como dois
+canais separados na lista, só publicando os dois como Beta App (abaixo)
+com códigos de acesso diferentes — sideload não permite isso.
 
 **Publicação sem Developer Mode (Beta App)**: dá pra empacotar como
 `.pkg` assinado e distribuir por código de acesso, sem precisar ativar
 Developer Mode em cada TV — processo completo documentado no
-[README.md](README.md), seção "Canal Roku nativo".
+[README.md](README.md), seção "Canal Roku nativo". Esse é o único
+caminho pra ter os dois canais (celular e standalone) instalados ao
+mesmo tempo na mesma Roku.
+
+**⚠️ Protetor de tela**: não existe API pra um canal Roku comum impedir
+o protetor de tela do sistema (confirmado testando/pesquisando — ver
+CLAUDE.md, 14ª decisão). Se a TV entrar em descanso de tela durante uma
+luta longa, ajuste **nas Configurações da própria Roku**: Configurações
+→ Sistema → Protetor de tela → aumentar o tempo (ou desativar).
 
 ## 2. Android TV / Google TV — `ct-timer.apk`
 
