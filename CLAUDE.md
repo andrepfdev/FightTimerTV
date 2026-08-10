@@ -575,6 +575,23 @@ Roku** (Sistema → Protetor de tela → aumentar o tempo ou desativar) —
 [DISPOSITIVOS-SUPORTADOS.md](DISPOSITIVOS-SUPORTADOS.md) como
 recomendação de uso.
 
+**Complemento (mesma sessão, teste real de novo)**: mesmo com o
+protetor de tela ajustado, a TV (AOC Roku TV, modelo `50U7045/78G`)
+voltou a "descansar"/desligar sozinha depois de ~8 minutos rodando o
+timer. Pesquisado: existe uma **segunda configuração**, separada do
+protetor de tela — `Configurações → Sistema → Energia → Economia de
+energia automática` — que desliga a TV depois de inatividade, e a
+documentação oficial da Roku diz explicitamente que **só vídeo/áudio
+conta como "atividade"** pra esse recurso. Como este app só atualiza
+texto na tela (sem media player nenhum tocando), é plausível que a
+Roku não reconheça o timer rodando como "atividade" pra esse contador
+específico. Não existe API BrightScript pra sinalizar "atividade" pra
+esse recurso também (mesma conclusão da seção acima) — é outro ajuste
+manual nas configurações da TV. TVs AOC especificamente têm relatos
+conhecidos (pesquisa externa) de desligar sozinha além do
+comportamento padrão da Roku, então pode haver ainda uma terceira
+configuração específica do fabricante não documentada pela Roku.
+
 **Nota pra decisão equivalente no APK** (13ª decisão): lá o cenário é
 diferente — `useKeepAwake()` (`@sayem314/react-native-keep-awake`) é
 uma API real e documentada do próprio Android (equivalente a
@@ -584,6 +601,19 @@ correção é válida e não tem o mesmo problema de API inexistente/
 descontinuada que a Roku teve. Não testada ainda em hardware/emulador
 Android TV real, mas não há motivo pra suspeitar dela como se suspeitou
 do `roAppManager`.
+
+**Ressalva pra quando for testar em hardware real**: `FLAG_KEEP_SCREEN_ON`
+(via `useKeepAwake()`) controla só a lógica de tela do **Android** em
+si — em **TVs com Android TV embutido de fábrica** (TCL, Philips, Sony
+etc., a TV *é* o Android TV), alguns fabricantes adicionam uma camada
+extra de economia de energia no firmware da própria TV, por fora do
+Android puro, que essa flag não necessariamente controla — mesmo tipo
+de armadilha que pegou a Roku AOC (`Economia de energia automática`,
+separada do protetor de tela do sistema). Isso já seria menos
+provável em **caixinhas externas** (Fire TV Stick, Chromecast com
+Google TV, Nvidia Shield, Mi Box), que mandam sinal de vídeo contínuo
+via HDMI pra TV, então não costumam disparar o "sem sinal"/eco da TV.
+Só testando em hardware real de cada tipo pra confirmar de verdade.
 
 ## Ideias futuras: monetização (não iniciado, só registrado pra não perder contexto)
 

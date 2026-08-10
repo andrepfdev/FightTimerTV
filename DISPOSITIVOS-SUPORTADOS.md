@@ -57,11 +57,22 @@ Developer Mode em cada TV — processo completo documentado no
 caminho pra ter os dois canais (celular e standalone) instalados ao
 mesmo tempo na mesma Roku.
 
-**⚠️ Protetor de tela**: não existe API pra um canal Roku comum impedir
-o protetor de tela do sistema (confirmado testando/pesquisando — ver
-CLAUDE.md, 14ª decisão). Se a TV entrar em descanso de tela durante uma
-luta longa, ajuste **nas Configurações da própria Roku**: Configurações
-→ Sistema → Protetor de tela → aumentar o tempo (ou desativar).
+**⚠️ Protetor de tela / TV desligando sozinha**: não existe API pra um
+canal Roku comum impedir isso (confirmado testando/pesquisando — ver
+CLAUDE.md, 14ª decisão). São **duas configurações diferentes** pra
+conferir na TV, ambas em Configurações → Sistema:
+1. **Protetor de tela** → aumentar o tempo ou desativar.
+2. **Energia → Economia de energia automática** → desliga a TV depois
+   de um tempo sem atividade — a documentação da Roku é explícita que
+   **só vídeo/áudio conta como "atividade"** aqui, então um app que só
+   atualiza texto na tela (como este) pode não impedir esse desligamento
+   mesmo rodando ativamente. Desativar esse recurso se a TV estiver
+   apagando/desligando sozinha durante uma luta longa.
+
+Roku TVs da marca **AOC especificamente têm relatos conhecidos** de
+desligar sozinha além do comportamento padrão da Roku — se as duas
+configurações acima não resolverem, vale procurar por alguma opção de
+"Eco"/economia de energia específica da AOC no menu da TV.
 
 ## 2. Android TV / Google TV — `ct-timer.apk`
 
