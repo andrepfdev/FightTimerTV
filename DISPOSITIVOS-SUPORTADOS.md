@@ -60,12 +60,31 @@ pelo controle remoto), sem servidor nem QR code.
    clicar 7x no número da versão (ativa Opções do Desenvolvedor) →
    Privacidade/Segurança → Aplicativos desconhecidos → permitir pelo
    app que vai instalar o APK.
-2. Transferir o `ct-timer.apk` pra TV — por app de transferência via
-   Wi-Fi (ex: "Send Files to TV"), pendrive, ou `adb install
-   ct-timer.apk` se a TV tiver depuração USB/rede ativada.
+2. Transferir o `ct-timer.apk` pra TV — três jeitos, escolher um:
+   - **Pendrive (USB)** — ver seção "Instalar via pendrive" abaixo.
+   - App de transferência via Wi-Fi (ex: "Send Files to TV").
+   - `adb install ct-timer.apk` se a TV tiver depuração USB/rede ativada.
 3. Abrir o gerenciador de arquivos na TV, selecionar o `.apk`, instalar.
 4. O app aparece na lista de apps com banner próprio (ícone/banner de TV
    já embutidos no APK).
+
+### Instalar via pendrive (USB)
+Funciona em qualquer Android TV/Google TV **com entrada USB-A física**
+— a maioria das TVs com Android TV embutido (TCL, Philips, Sony, Aiwa,
+Philco, Semp) e boxes como Nvidia Shield e Mi Box têm. Streaming sticks
+menores (Chromecast com Google TV) geralmente **não têm** USB-A
+utilizável pra isso — nesse caso usar transferência por Wi-Fi ou `adb`.
+
+1. Copiar `ct-timer.apk` pro pendrive, formatado em **FAT32 ou exFAT**
+   (praticamente todo Android TV lê os dois; NTFS é mais hit-or-miss
+   dependendo do fabricante).
+2. Plugar o pendrive na porta USB da TV/box.
+3. Se a TV não tiver um gerenciador de arquivos nativo visível, instalar
+   um pela Play Store — ex: **"File Commander"** ou **"X-plore File
+   Manager"** (ambos leem USB automaticamente).
+4. Abrir o gerenciador de arquivos, navegar até o pendrive (aparece
+   como um dispositivo de armazenamento externo/USB), selecionar
+   `ct-timer.apk`, tocar em instalar.
 
 ## 3. Fire TV (Fire OS) — mesmo `ct-timer.apk`
 
@@ -75,10 +94,21 @@ Fire OS é fork do Android, aceita o mesmo APK.
 1. Habilitar apps de fontes desconhecidas: Configurações → Minha Fire TV
    → Sobre → clicar 7x no nome do dispositivo → voltar em Opções do
    Desenvolvedor → ativar "Instalar apps desconhecidos".
-2. Instalar o app **Downloader** (Amazon Appstore) na própria Fire TV.
-3. Hospedar o `ct-timer.apk` em algum lugar com URL direta (ex: um link
-   de download simples) e digitar essa URL no Downloader.
-4. Abrir o app instalado — como não foi publicado na Amazon Appstore,
+2. Transferir o `ct-timer.apk` — dois jeitos, escolher um:
+   - **Pendrive (USB)**: só o **Fire TV Cube** tem porta USB-A completa
+     nativamente; **Fire TV Stick** (qualquer geração) não tem USB-A —
+     só uma porta micro-USB/USB-C de energia, que só vira utilizável
+     pra pendrive com um **adaptador OTG** (USB-C/micro-USB fêmea →
+     USB-A fêmea, barato, do tipo "OTG"), e mesmo assim alguns modelos
+     de Stick têm suporte instável a isso — nem sempre funciona.
+     Com porta disponível (Cube, ou Stick + OTG): plugar o pendrive
+     (FAT32/exFAT) e usar um gerenciador de arquivos (ver Downloader
+     abaixo, ele também navega USB) pra achar e instalar o `.apk`.
+   - **App Downloader** (mais confiável, funciona em qualquer Fire TV
+     sem depender de porta USB): hospedar o `ct-timer.apk` em algum
+     lugar com URL direta de download e digitar essa URL dentro do
+     Downloader — ele baixa e abre o instalador sozinho.
+3. Abrir o app instalado — como não foi publicado na Amazon Appstore,
    ele **não aparece na fileira principal da home**; fica acessível via
    "Aplicativos" → lista de apps instalados. Funciona normalmente a
    partir daí.
