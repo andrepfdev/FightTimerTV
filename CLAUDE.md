@@ -533,6 +533,34 @@ fechando o app durante a corrida, banner aparecendo no launcher.
   Android TV, Fire TV) **nunca foi validada em TV real** ainda — só o
   canal Roku e o app Android foram testados fisicamente até agora.
 
+## Ideias futuras: monetização (não iniciado, só registrado pra não perder contexto)
+
+O usuário mencionou um plano pra uma **versão futura** — ainda não é
+uma tarefa em andamento, não começar a implementar sem pedido explícito
+depois:
+
+- **Stack pretendida**: API própria em **Express**, hospedada na
+  **Vercel**, banco de dados **Neon** (Postgres serverless), pagamento
+  via **Stripe**.
+- **Modelo de acesso**: sem cadastro de usuário (sem login/senha) — a
+  pessoa paga no Stripe e recebe um **código** que digita no app/TV pra
+  desbloquear, no estilo "license key" avulsa em vez de conta. Isso
+  preserva o espírito "sem login" que já rege o projeto hoje (5ª
+  decisão) — a mudança é só cobrar pelo acesso, não introduzir conta de
+  usuário.
+
+**Pesquisa sobre o concorrente** (Sensei Timer, `senseitimer.com.br`,
+ver também a análise comparativa feita numa sessão anterior): o
+pagamento deles passa por **Cakto** (`pay.cakto.com.br`, plataforma de
+checkout brasileira, não é Stripe direto), e a página tem indícios de
+ser **login/conta tradicional** (botão "Entrar", menção a "faça login
+com a mesma conta do celular") — **nenhuma menção** a código de
+ativação/chave de licença foi encontrada no conteúdo público da página.
+Não dá pra confirmar 100% sem acesso ao checkout de verdade, mas a
+inferência é que o modelo deles é diferente do que o usuário quer fazer
+(conta em vez de código avulso) — vale essa pesquisa só como referência
+de mercado, não como modelo a seguir.
+
 ## Skills relevantes do Claude Code para este projeto
 
 - **`run`** — usar para efetivamente rodar/buildar o app RN e ver a
