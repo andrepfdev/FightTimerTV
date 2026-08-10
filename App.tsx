@@ -6,18 +6,24 @@
  * @format
  */
 
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
+import { Platform, StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import TimerScreen from './src/screens/TimerScreen';
+import TVTimerScreen from './src/screens/TVTimerScreen';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
 
+  // Platform.isTV é resolvido em runtime pelo próprio Android (UiModeManager
+  // reportando UI_MODE_TYPE_TELEVISION) — mesmo APK funciona como app de
+  // celular (servidor HTTP + QR code) ou como timer standalone controlado
+  // pelo controle remoto quando aberto direto numa Android TV/Google TV/
+  // Fire TV, sem precisar de build separado nem flavor.
   return (
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <View style={styles.container}>
-        <TimerScreen />
+        {Platform.isTV ? <TVTimerScreen /> : <TimerScreen />}
       </View>
     </SafeAreaProvider>
   );

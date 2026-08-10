@@ -69,6 +69,10 @@ src/screens/TimerScreen.tsx    — motor de rounds/intervalo (setup + run,
                                   original), IP local + QR code. Tempo
                                   sempre derivado de Date.now() (ver 8ª
                                   decisão) — o tick de 500ms só re-renderiza
+src/screens/TVTimerScreen.tsx  — timer standalone pra Android TV/Google TV/
+                                  Fire TV (mesmo APK, ver 13ª decisão):
+                                  sem servidor/HTTP/QR code, configurado e
+                                  controlado 100% por D-pad + AsyncStorage
 src/screens/timerEngine.ts     — lógica pura testável: advancePhase() (algo
                                   clássico) + buildSchedulePhases()/
                                   phaseAtElapsedMs() que derivam a fase a
@@ -382,6 +386,93 @@ label "logo" na tela do canal Roku original
 (`roku/components/MainScene.xml`, texto "FIGHT TIMER" → "CT TIMER"). O
 canal novo (`roku-standalone/`, ver 11ª decisão) já nasceu com "CT
 Timer"/"CT TIMER" desde o primeiro commit, sem precisar de migração.
+
+## 13ª decisão: mesmo APK vira timer standalone em Android TV/Google TV/Fire TV
+
+Depois do canal Roku standalone (11ª decisão), o usuário pediu o mesmo
+conceito — timer configurado e controlado 100% pelo controle remoto, sem
+celular — para as plataformas de TV que aceitam instalação direta de
+`.apk`: **Android TV/Google TV** e **Fire OS** (Amazon Fire TV, fork do
+Android). Diferente da Roku, aqui não foi preciso portar nada pra outra
+linguagem: `buildSchedulePhases()`/`phaseAtElapsedMs()` em
+[src/screens/timerEngine.ts](src/screens/timerEngine.ts) já são
+TypeScript puro e foram reaproveitados direto.
+
+**Mesmo APK dos dois mundos, detecção em runtime.** `Platform.isTV` do
+RN core (não depende de `react-native-tvos`, que é mais voltado a tvOS)
+é resolvido pelo Android via `UiModeManager` reportando
+`UI_MODE_TYPE_TELEVISION` — é runtime, não build-time, e `false` em
+qualquer celular normal. `App.tsx` decide entre `<TimerScreen/>`
+(celular, servidor HTTP + QR code, intocado) e
+`<TVTimerScreen/>` (novo, [src/screens/TVTimerScreen.tsx](src/screens/TVTimerScreen.tsx))
+sem precisar de build separado nem product flavor — o mesmo `.apk`
+gerado por `assembleRelease` funciona como app de celular ou como timer
+standalone dependendo de onde é aberto.
+
+`TVTimerScreen.tsx` é uma tela **irmã**, não uma variante de
+`TimerScreen.tsx`: não instancia `TimerServer`/HTTP/QR code/`NetworkInfo`
+— zero rede, 100% local ao processo, mesmo mecanismo de relógio de
+parede (âncoras de `Date.now()`, nunca `setInterval` decrementando, ver
+8ª decisão) copiado do padrão já validado, não abstraído num hook
+compartilhado (evita risco na tela de celular já validada em produção).
+
+**Persistência da última config (rounds/tempo/intervalo)** via
+`@react-native-async-storage/async-storage` — mesma exceção pontual à
+filosofia "sem persistência" já aberta pro canal Roku standalone (sem
+celular por perto, reconfigurar do zero toda vez que a TV liga seria
+atrito real).
+
+**Navegação por D-pad em RN puro, sem `react-native-tvos`**: confirmado
+por leitura do código-fonte do RN 0.86.2 que `hasTVPreferredFocus` e
+`nextFocusUp/Down/Left/Right` **só existem tipados em
+`TouchableOpacity`**, não em `Pressable`, nesta versão — por isso
+`TVTimerScreen.tsx` usa `TouchableOpacity` em vez de `Pressable` (que é
+o padrão usado em `TimerScreen.tsx`) especificamente pra essa tela. O
+destaque visual de foco é manual via `onFocus`/`onBlur` guardando uma
+`focusedKey` em estado (o atalho `state.focused` do `Pressable` também
+não está tipado nesta versão). `nextFocus*` recebem `number`
+(`reactTag` via `findNodeHandle`), não uma ref direta — montados num
+`useEffect` após todos os refs existirem. `TVEventHandler` não existe
+no RN core (só no fork `react-native-tvos`) e não faz falta: OK/Select
+do controle já mapeia nativamente pra clique no elemento focado.
+
+**Armadilha real evitada, não reintroduzir**: sem um listener em
+`BackHandler.addEventListener('hardwareBackPress', ...)`, apertar Back
+no controle remoto durante a corrida do timer **fecha o app inteiro**
+(RN chama `BackHandler.exitApp()` por padrão). `TVTimerScreen.tsx`
+registra esse listener só na tela de "run" (consome o evento, volta pro
+setup); na tela de "setup" o Back "vaza" de propósito, pra permitir sair
+do app normalmente — comportamento esperado de qualquer app leanback
+bem-comportado.
+
+**Manifest aditivo, não exclusivo**: `AndroidManifest.xml` ganhou
+`<uses-feature android:name="android.software.leanback"
+android:required="false"/>`, idem pra `android.hardware.touchscreen`,
+`android:banner="@drawable/tv_banner"` na `<application>`, e uma
+segunda categoria `LEANBACK_LAUNCHER` no `intent-filter` da
+`MainActivity` (mantendo `LAUNCHER`). `required="false"` nas duas
+`uses-feature` garante que nada disso vira exigência que esconderia o
+app de celulares comuns — launcher de celular ignora
+`LEANBACK_LAUNCHER`, launcher de TV usa especificamente ela.
+
+**Fire OS**: mesmo `.apk` funciona via sideload sem nenhuma mudança de
+código (`UiModeManager` também resolve TV lá, `Platform.isTV` ativa a
+tela certa sozinho) — mas a Fire TV **não usa `LEANBACK_LAUNCHER`** pra
+listar apps na home; apps sideloaded (sem publicação formal na Amazon
+Appstore, fora de escopo por decisão do usuário) só ficam acessíveis via
+"Aplicativos > [Nome]" no menu de apps instalados, não na fileira
+principal. É só limitação de descoberta, não de funcionamento.
+
+**Banner 320x180** gerado via `scripts/gen_tv_banner.py` (Pillow),
+reaproveitando a paleta `#C8F400`/`#1a1a1a` e a fonte Bebas Neue já
+usadas em todo o projeto — salvo em
+`android/app/src/main/res/drawable/tv_banner.png`.
+
+**Ainda não testado em hardware/emulador real** (implementado sem
+acesso a Android TV/Fire TV físicos nesta sessão) — próximo passo é
+validar em emulador Android TV (AVD "Television") antes de sideload
+real, cobrindo especificamente: navegação D-pad completa, Back não
+fechando o app durante a corrida, banner aparecendo no launcher.
 
 ## Estado atual / próximos passos
 

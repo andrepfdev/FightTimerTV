@@ -16,11 +16,22 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
+    <!-- Deixa explícito que o app roda com ou sem esses recursos — sem
+         required="false" alguns verificadores/lojas poderiam interpretar
+         como "exige leanback/toque" e esconder o app de celulares ou de
+         TVs, respectivamente. Aditivo: não afeta o comportamento em
+         celular, só habilita o app a aparecer no launcher leanback de
+         Android TV/Google TV (ver android:banner e LEANBACK_LAUNCHER
+         abaixo). -->
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"
       android:icon="@mipmap/ic_launcher"
       android:roundIcon="@mipmap/ic_launcher_round"
+      android:banner="@drawable/tv_banner"
       android:allowBackup="false"
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="${usesCleartextTraffic}"
@@ -36,6 +47,12 @@
         <intent-filter>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
+            <!-- Launcher de Android TV/Google TV procura especificamente
+                 por essa categoria pra listar o app com o banner acima;
+                 launchers de celular ignoram e continuam usando LAUNCHER
+                 normalmente — as duas categorias convivem no mesmo
+                 intent-filter sem conflito. -->
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
         </intent-filter>
       </activity>
       <service
