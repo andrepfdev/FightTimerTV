@@ -106,8 +106,8 @@ roku/                          — canal Roku nativo com celular (BrightScript/
 roku-standalone/               — segundo canal Roku, sem celular: configurado
                                   e controlado 100% pelo controle remoto,
                                   cronograma de rounds montado localmente
-                                  (ver 11ª decisão). Ainda não testado em
-                                  hardware real
+                                  (ver 11ª decisão). Testado em hardware
+                                  real, bug de CLng() já corrigido
 eas.json, app.json              — config do EAS Build pra compilar iOS na
                                   nuvem sem precisar de Mac (ver 10ª decisão)
 ```
@@ -360,10 +360,39 @@ Todos os bugs documentados na 7ª decisão (nunca redeclarar `visible`,
 raiz, fontes com `uri` real) foram respeitados desde o primeiro rascunho
 do novo canal.
 
-**Ainda não testado em hardware real** (implementado nesta sessão, sem
-acesso à TV física no momento) — próximo passo é sideload lado a lado
-com `roku/` já instalado, confirmando que aparecem como dois canais
-distintos.
+**Testado em hardware real numa sessão posterior** (mesma Roku TV AOC,
+`192.168.0.18`) — sideload funcionou lado a lado com `roku/`
+(confirmado: dois canais distintos, "CT Timer" e "CT Timer Standalone").
+
+### Bug real encontrado e corrigido: `CLng()` não existe em BrightScript
+
+Primeira versão de `buildSchedulePhases()`/`computeElapsedMs()` usava
+`CLng(x)` como função de conversão pra `LongInteger` — isso existe em
+Visual Basic, **não em BrightScript**. Como `CLng` não está declarado,
+o BrightScript trata o identificador como `Invalid` e tentar "chamá-lo"
+(`CLng(0)`) lança `Function Call Operator ( ) attempted on non-function
+(runtime error &he0)`. Isso acontecia **dentro do handler de tecla OK**
+(`onKeyEvent → startFight → buildSchedulePhases`), então o crash travava
+a thread de script da cena inteira — sintoma no controle remoto: app
+trava por completo ao apertar OK pra iniciar a luta, nenhuma tecla
+(nem Back) responde mais depois disso.
+
+**Como foi diagnosticado**: `query/active-app` (ECP) confirmou que o
+canal continuava "ativo" (não caiu pra Home sozinho — não era um crash
+que o sistema recuperasse), then conectar o console de debug (`telnet
+8085`) **antes** de reproduzir o problema via ECP
+(`curl -d '' http://<ip>:8060/keypress/Select`) capturou o stack trace
+real, incluindo a linha exata e as variáveis locais no momento do erro —
+muito mais rápido que adivinhar por leitura estática do código (que não
+achou a causa sozinha).
+
+**Correção**: trocar `CLng(x)` pelo sufixo `&` de literal LongInteger, a
+forma correta em BrightScript — `CLng(0)` → `0&`, `CLng(roundTimeSec) *
+1000` → `roundTimeSec * 1000&` (o `&` no literal `1000&` já promove a
+expressão inteira pra LongInteger, sem precisar de função de conversão
+nenhuma). **Não reintroduzir `CLng()`** em nenhum `.brs` deste projeto —
+nem no canal `roku/` original (que não usa essa função, então não tem
+esse bug), nem em código novo.
 
 ## 12ª decisão: rebranding do nome visível para "CT Timer"
 

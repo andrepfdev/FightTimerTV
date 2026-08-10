@@ -52,19 +52,30 @@ end sub
 ' Mesma regra do buildSchedulePhases() em src/screens/timerEngine.ts:
 ' round 1 → intervalo → round 2 → ... → último round sem intervalo depois;
 ' breakTimeSec = 0 pula a fase de descanso inteiramente. Usa LongInteger
-' (CLng) explícito no cursor e nos produtos — o pior caso realista (99
-' rounds de 3600s cada + 98 intervalos de 3600s) chega perto de ~709
+' explícito no cursor e nos produtos, via sufixo `&` (não existe função
+' `CLng()` em BrightScript — isso é um "vazamento" de Visual Basic; a
+' forma certa de forçar um literal LongInteger é sufixar com `&`, o que
+' promove toda a expressão aritmética envolvida) — o pior caso realista
+' (99 rounds de 3600s cada + 98 intervalos de 3600s) chega perto de ~709
 ' milhões de ms, dentro do limite de Integer32 (~2.147 bilhões) mas perto
 ' o bastante pra justificar o cuidado de tipo aqui.
+'
+' BUG REAL JÁ ENCONTRADO (não reintroduzir): a primeira versão usava
+' `CLng(...)` como se fosse uma função de conversão (existe em VB, não em
+' BrightScript) — travava o app inteiro na hora de apertar OK pra
+' iniciar, com "Function Call Operator ( ) attempted on non-function"
+' (BrightScript trata identificador não-declarado como Invalid e tentar
+' "chamar" `CLng(0)` estoura). Confirmado em hardware real via console de
+' debug (telnet 8085) + reprodução por ECP.
 function buildSchedulePhases(totalRounds as Integer, roundTimeSec as Integer, breakTimeSec as Integer) as Object
     phases = []
-    cursor = CLng(0)
+    cursor = 0&
     for round = 1 to totalRounds
-        durRoundMs = CLng(roundTimeSec) * 1000
+        durRoundMs = roundTimeSec * 1000&
         phases.Push({ kind: "round", round: round, startMs: cursor, durMs: durRoundMs })
         cursor = cursor + durRoundMs
         if round < totalRounds and breakTimeSec > 0
-            durBreakMs = CLng(breakTimeSec) * 1000
+            durBreakMs = breakTimeSec * 1000&
             phases.Push({ kind: "rest", round: round, startMs: cursor, durMs: durBreakMs })
             cursor = cursor + durBreakMs
         end if
@@ -85,7 +96,7 @@ function epochSec() as Integer
 end function
 
 function computeElapsedMs() as LongInteger
-    return m.cache.state.elapsedMs + CLng(epochSec() - m.cache.rxSec) * 1000
+    return m.cache.state.elapsedMs + (epochSec() - m.cache.rxSec) * 1000&
 end function
 
 ' Caminha no cronograma absoluto e devolve a fase atual — espelho do
@@ -266,7 +277,7 @@ sub startFight()
             paused: false
             totalRounds: m.setupValues.rounds
             soundOn: true
-            elapsedMs: CLng(0)
+            elapsedMs: 0&
             schedule: schedule
         }
         rxSec: epochSec()
