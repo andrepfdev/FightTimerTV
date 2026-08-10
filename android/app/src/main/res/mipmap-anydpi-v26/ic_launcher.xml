@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ícone adaptativo (API 26+). Sem este arquivo, o launcher (confirmado
+  num Samsung One UI) trata o PNG legado em mipmap-*/ic_launcher.png como
+  "ícone não-adaptativo" e sintetiza sozinho um backplate quadrado branco
+  atrás dele antes de aplicar a máscara do sistema — o quadrado branco
+  visto em teste real não vinha de transparência no PNG (os PNGs em
+  mipmap-*/ic_launcher.png já são opacos, preto de borda a borda), vinha
+  da ausência desta declaração. Foreground = mesmo desenho do ícone
+  legado (cronômetro amarelo em fundo preto, cabe folgado dentro da "safe
+  zone" central); background = mesma cor sólida #1a1a1a via colors.xml,
+  então a máscara (círculo, squircle, etc.) nunca expõe nada além do
+  preto que já fazia parte do desenho original.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

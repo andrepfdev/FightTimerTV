@@ -28,7 +28,7 @@
     <children>
         <Rectangle id="background" color="0x1A1A1AFF" width="1920" height="1080" />
 
-        <Label id="logo" text="FIGHT TIMER" translation="[40, 36]" color="0xFFFFFF66">
+        <Label id="logo" text="CT TIMER" translation="[40, 36]" color="0xFFFFFF66">
             <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="28" />
         </Label>
 

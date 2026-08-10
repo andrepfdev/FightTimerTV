@@ -1,0 +1,10 @@
+<resources>
+    <!-- Fundo do ícone adaptativo (Android 8+/API 26+). Mesma cor sólida
+         edge-to-edge do PNG legado (#1a1a1a), pra manter o visual idêntico
+         quando o sistema aplica a máscara circular/squircle/etc. Sem essa
+         declaração, launchers que forçam ícone adaptativo (ex: Samsung One
+         UI) sintetizam um backplate branco por conta própria em cima do PNG
+         legado — foi exatamente esse retângulo branco visto atrás do ícone
+         em teste real que motivou esse arquivo. -->
+    <color name="ic_launcher_background">#1A1A1A</color>
+</resources>

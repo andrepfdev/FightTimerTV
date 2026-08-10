@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Cena principal do canal STANDALONE (sem celular). Mesmo layout visual de
+  execução do canal com celular (roku/components/MainScene.xml) — fundo
+  escuro, número gigante amarelo, indicador de round, barra de progresso,
+  overlay "FIM" — mas sem PollTask/offlineBanner/ipEntryGroup nenhum: o
+  cronograma de rounds é construído localmente (ver buildSchedulePhases()
+  em MainScene.brs) a partir de uma tela de configuração por spinners
+  (rounds / tempo de round / intervalo), e o "relógio de parede" que
+  deriva o tempo a cada tick roda em cima desse cronograma local, sem
+  depender de nenhuma resposta de rede.
+
+  Fonte: Bebas Neue embutida (mesmo .ttf do canal com celular e do app
+  RN) via uri="pkg:/fonts/...ttf" nos nós <Font> — nós de Font sem uri de
+  verdade renderizam como "tofu" em teste real na Roku (documentado no
+  projeto).
+
+  A tela de setup é um "spinner" numérico simples, gerenciada inteiramente
+  por esta própria cena (sem componente filho separado) — roteamento de
+  tecla pra dentro de componente customizado aninhado não é confiável na
+  Roku mesmo com foco nativo confirmado (documentado no projeto); a
+  MainScene em si sempre recebe as teclas corretamente.
+-->
+<component name="MainScene" extends="Scene">
+    <interface>
+    </interface>
+
+    <children>
+        <Rectangle id="background" color="0x1A1A1AFF" width="1920" height="1080" />
+
+        <Label id="logo" text="CT TIMER" translation="[40, 36]" color="0xFFFFFF66">
+            <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="28" />
+        </Label>
+
+        <Label id="roundIndicator" text=""
+               translation="[0, 300]" width="1920" horizAlign="center"
+               color="0xFFFFFFE0">
+            <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="56" />
+        </Label>
+
+        <Label id="bigTimer" text="00:00"
+               translation="[0, 360]" width="1920" height="440"
+               horizAlign="center" vertAlign="center"
+               color="0x666666FF">
+            <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="380" />
+        </Label>
+
+        <Rectangle id="progressWrap" translation="[0, 1060]"
+                   width="1920" height="20" color="0xFFFFFF0D" />
+        <Rectangle id="progressFill" translation="[0, 1060]"
+                   width="0" height="20" color="0xC8F400FF" />
+
+        <!-- Dica de teclas, visível só enquanto a luta está rodando/
+             pausada (escondida durante o setup, que já tem sua própria
+             dica, e durante o overlay de FIM). -->
+        <Label id="runHint" text="PLAY pausa/retoma — REPLAY volta pra configuração"
+               translation="[0, 1010]" width="1920" horizAlign="center"
+               color="0x444444FF" visible="false">
+            <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="24" />
+        </Label>
+
+        <Group id="doneOverlay" visible="false">
+            <Rectangle id="doneBg" color="0x1A1A1AF7" width="1920" height="1080" />
+            <Label id="doneTitle" text="FIM!" translation="[0, 380]"
+                   width="1920" horizAlign="center" color="0xC8F400FF">
+                <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="160" />
+            </Label>
+            <Label id="doneSub" text="" translation="[0, 620]"
+                   width="1920" horizAlign="center" color="0x666666FF">
+                <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="48" />
+            </Label>
+        </Group>
+
+        <!-- Configuração da luta: 3 "spinners" (ROUNDS / TEMPO DE ROUND /
+             INTERVALO), mesmos limites e passos do setup do app RN
+             (src/screens/TimerScreen.tsx). Esquerda/Direita trocam de
+             campo, Cima/Baixo mudam o valor do campo atual, OK confirma e
+             já inicia a luta (sem botão "INICIAR" separado — mesmo padrão
+             do ipEntryGroup original: OK confirma tudo de uma vez). -->
+        <Group id="setupGroup" visible="true">
+            <Rectangle id="setupBg" color="0x1A1A1AFF" width="1920" height="1080" />
+            <Label id="setupTitle" text="Configure a luta"
+                   translation="[0, 120]" width="1920" horizAlign="center"
+                   color="0xFFFFFFFF">
+                <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="44" />
+            </Label>
+            <Label id="setupHint"
+                   text="Esquerda/Direita trocam de campo — Cima/Baixo mudam o valor — OK inicia a luta"
+                   translation="[0, 190]" width="1920" horizAlign="center"
+                   color="0x666666FF">
+                <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="28" />
+            </Label>
+
+            <!-- Campo 0: ROUNDS -->
+            <Rectangle id="setupBox0" translation="[190, 360]" width="460" height="220"
+                       color="0x2A2A2AFF" />
+            <Label id="setupCaption0" text="ROUNDS" translation="[190, 390]" width="460"
+                   horizAlign="center" color="0x666666FF">
+                <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="30" />
+            </Label>
+            <Label id="setupValue0" text="10" translation="[190, 430]" width="460" height="130"
+                   horizAlign="center" vertAlign="center" color="0xFFFFFFFF">
+                <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="90" />
+            </Label>
+
+            <!-- Campo 1: TEMPO DE ROUND (mm:ss) -->
+            <Rectangle id="setupBox1" translation="[730, 360]" width="460" height="220"
+                       color="0x2A2A2AFF" />
+            <Label id="setupCaption1" text="TEMPO DE ROUND" translation="[730, 390]" width="460"
+                   horizAlign="center" color="0x666666FF">
+                <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="30" />
+            </Label>
+            <Label id="setupValue1" text="05:00" translation="[730, 430]" width="460" height="130"
+                   horizAlign="center" vertAlign="center" color="0xFFFFFFFF">
+                <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="90" />
+            </Label>
+
+            <!-- Campo 2: INTERVALO (mm:ss) -->
+            <Rectangle id="setupBox2" translation="[1270, 360]" width="460" height="220"
+                       color="0x2A2A2AFF" />
+            <Label id="setupCaption2" text="INTERVALO" translation="[1270, 390]" width="460"
+                   horizAlign="center" color="0x666666FF">
+                <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="30" />
+            </Label>
+            <Label id="setupValue2" text="00:30" translation="[1270, 430]" width="460" height="130"
+                   horizAlign="center" vertAlign="center" color="0xFFFFFFFF">
+                <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="90" />
+            </Label>
+
+            <Label id="setupConfirmHint" text="Aperte OK pra iniciar"
+                   translation="[0, 640]" width="1920" horizAlign="center"
+                   color="0xC8F400FF">
+                <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="34" />
+            </Label>
+        </Group>
+
+        <!-- Audio não tem campo "volume" — só "mute". O volume real vem
+             do nível de amplitude gravado nos próprios .wav e do volume
+             físico da TV. -->
+        <Audio id="bellAudio" mute="false" />
+
+        <!-- setFocus() chamado durante a construção da cena (antes de
+             roSGScreen.show() rodar em main.brs) falha silenciosamente —
+             confirmado em teste real no canal com celular. Esse Timer
+             adia a primeira (e única) tentativa de foco da cena pra
+             depois dela já estar de fato na tela. -->
+        <Timer id="initialFocusTimer" duration="0.3" repeat="false" />
+        <!-- Tick de relógio de parede: re-deriva o tempo a cada 250ms a
+             partir do cronograma local + elapsedMs + offset de relógio —
+             mesma mecânica do canal com celular, só que aqui o cronograma
+             nunca veio de rede nenhuma, foi montado localmente. -->
+        <Timer id="clockTickTimer" duration="0.25" repeat="true" />
+    </children>
+
+    <script type="text/brightscript" uri="pkg:/components/MainScene.brs" />
+</component>

@@ -7,6 +7,12 @@ Ver [README.md](README.md) para a explicação funcional e o guia de teste
 por TV — este arquivo é sobre **decisões e histórico**, para não perder
 contexto entre sessões.
 
+**Nome visível ao usuário final: "CT Timer"** (ver 12ª decisão) — pasta do
+repositório, `package.json`, identificadores internos e este documento
+continuam usando `FightTimerTV`/"Fight Timer TV" por conveniência de
+código, mas o app RN, o canal Roku com celular e o canal Roku standalone
+mostram "CT Timer" pro usuário.
+
 ## Origem
 
 Este projeto nasceu de um app anterior, **`ct-timer`**
@@ -89,9 +95,15 @@ android/…, ios/…               — permissões já configuradas (ver README.
                                   Package.kt em android/app/src/main/java/
                                   com/fighttimertv/ (ver 9ª decisão); ícone
                                   custom em mipmap-*/ic_launcher*.png
-roku/                          — canal Roku nativo (BrightScript/SceneGraph),
-                                  testado em hardware real (ver 7ª decisão e
-                                  a seção "Canal Roku nativo" do README.md)
+roku/                          — canal Roku nativo com celular (BrightScript/
+                                  SceneGraph), testado em hardware real (ver
+                                  7ª decisão e a seção "Canal Roku nativo"
+                                  do README.md)
+roku-standalone/               — segundo canal Roku, sem celular: configurado
+                                  e controlado 100% pelo controle remoto,
+                                  cronograma de rounds montado localmente
+                                  (ver 11ª decisão). Ainda não testado em
+                                  hardware real
 eas.json, app.json              — config do EAS Build pra compilar iOS na
                                   nuvem sem precisar de Mac (ver 10ª decisão)
 ```
@@ -281,6 +293,95 @@ cronômetro amarelo em fundo **preto sólido, edge-to-edge** — importante
 que o fundo preencha o quadrado inteiro sem transparência/padding, senão
 alguns launchers (confirmado num Samsung One UI) desenham um quadrado
 branco atrás do ícone.
+
+**Complemento (2ª ocorrência do mesmo sintoma, sessão posterior)**: o
+quadrado branco atrás do ícone voltou a aparecer num Samsung One UI real
+mesmo com os PNGs legados já 100% opacos borda-a-borda (confirmado por
+inspeção de pixel — não era mais transparência). A causa raiz dessa vez
+era outra: **faltava um ícone adaptativo declarado** (`mipmap-anydpi-v26/`,
+API 26+). Sem essa declaração, o launcher trata o PNG legado como
+"não-adaptativo" e sintetiza um backplate branco por conta própria antes
+de aplicar a máscara do sistema. Corrigido com
+`android/app/src/main/res/values/colors.xml`
+(`ic_launcher_background = #1A1A1A`, mesma cor do fundo do ícone) +
+`mipmap-anydpi-v26/ic_launcher.xml` e `ic_launcher_round.xml`
+(`<adaptive-icon>` com esse background sólido + foreground = cópia do PNG
+legado em cada densidade, `ic_launcher_foreground.png`). Moral: "fundo
+opaco no PNG" e "ícone adaptativo declarado" são dois requisitos
+independentes — os dois já foram vistos causando esse mesmo sintoma em
+launchers Samsung reais nesta sessão de trabalho.
+
+## 11ª decisão: segundo canal Roku standalone, sem celular
+
+Depois de ver um concorrente (Sensei Timer) que também resolve
+cronômetro de treino pra TV de academia, o usuário perguntou se dava pra
+ter uma versão do canal Roku que não depende do celular como servidor —
+configurada e controlada 100% pelo controle remoto. Confirmado
+explicitamente: **um canal Roku separado** (pacote/instalação própria),
+**não** um modo alternável dentro do canal existente — `roku/` continua
+100% como estava, sem nenhuma mudança de lógica (só o texto do `title`
+mudou, ver 12ª decisão).
+
+Criado `roku-standalone/`, cópia estrutural de `roku/` (mesmos
+manifest/components/fonts/audio/images), mas:
+- **sem** `PollTask`/rede nenhuma — não existe servidor pra consultar.
+- **sem** tela de IP — não há endereço nenhum pra configurar.
+- **com** uma tela de setup por spinners (ROUNDS, TEMPO DE ROUND,
+  INTERVALO — mesmos limites/passos de `TimerScreen.tsx`: 1-99 passo 1,
+  30-3600s passo 30, 0-3600s passo 15) como única tela de configuração,
+  seguindo literalmente o padrão do `ipEntryGroup` original (destaque
+  manual por cor, sem `setFocus()` nativo por campo, tudo dentro da
+  própria `MainScene` — nunca em componente filho, ver bug #3 da 7ª
+  decisão).
+- **com** `buildSchedulePhases()` portado de
+  [src/screens/timerEngine.ts](src/screens/timerEngine.ts) pra
+  BrightScript (função pura, sem API JS específica, direto de portar) —
+  é esse canal que monta o cronograma agora, e alimenta o mesmo
+  `m.cache = { state, rxSec }` que o canal original usa, então
+  `deriveState()`/`lookupPhase()`/`applyState()`/`maybePlayBell()` são
+  cópias quase literais (mesmo contrato de dados, só muda a origem do
+  `schedule`: local em vez de vir de `/state`).
+
+Controle 100% pelo remoto: `play` alterna pausa/retomada (mesma âncora
+de `TimerServer.pause()/resume()` — pausar congela `elapsedMs` calculado
+na hora, retomar reancora o relógio mantendo o elapsed acumulado);
+`replay` reseta pra tela de setup; `back` **não é interceptado**
+(mantém sair do canal, comportamento padrão do sistema). Última
+configuração persistida em `roRegistrySection("FightTimerTVStandalone")`
+— seção de registro própria, não colide com `serverAddress` do canal
+original — pra não precisar reconfigurar toda vez que a TV liga.
+
+Todos os bugs documentados na 7ª decisão (nunca redeclarar `visible`,
+`setFocus()` só via Timer adiado, roteamento de tecla só na `MainScene`
+raiz, fontes com `uri` real) foram respeitados desde o primeiro rascunho
+do novo canal.
+
+**Ainda não testado em hardware real** (implementado nesta sessão, sem
+acesso à TV física no momento) — próximo passo é sideload lado a lado
+com `roku/` já instalado, confirmando que aparecem como dois canais
+distintos.
+
+## 12ª decisão: rebranding do nome visível para "CT Timer"
+
+Pedido do usuário: o nome mostrado ao usuário final deve ser **"CT
+Timer"** — referência direta ao app original `ct-timer` que deu origem a
+este projeto (ver seção "Origem" no topo deste arquivo). Confirmado
+explicitamente que é rebranding de **projeto inteiro** (app RN + os dois
+canais Roku), mas **só o nome visível** — pasta do repositório,
+`package.json` (`name` interno), identificadores de bundle/pacote e todo
+o código continuam `FightTimerTV`/`fighttimertv`. Trocar esses
+identificadores internos teria custo/risco desproporcional (bundle ID
+mudado invalida reinstalação como app já existente nas lojas/EAS Build)
+por um ganho puramente cosmético.
+
+Trocado em 5 lugares: `app.json` (`displayName`), `android/app/src/main/
+res/values/strings.xml` (`app_name`, nome embaixo do ícone no launcher),
+`ios/FightTimerTV/Info.plist` (`CFBundleDisplayName`), `roku/manifest`
+(`title`, + `build_version` subiu pra forçar reinstalação real) e o
+label "logo" na tela do canal Roku original
+(`roku/components/MainScene.xml`, texto "FIGHT TIMER" → "CT TIMER"). O
+canal novo (`roku-standalone/`, ver 11ª decisão) já nasceu com "CT
+Timer"/"CT TIMER" desde o primeiro commit, sem precisar de migração.
 
 ## Estado atual / próximos passos
 
