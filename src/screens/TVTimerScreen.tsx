@@ -8,6 +8,7 @@ import {
   findNodeHandle,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useKeepAwake } from '@sayem314/react-native-keep-awake';
 import { buildSchedulePhases, phaseAtElapsedMs } from './timerEngine';
 
 const TV_CONFIG_KEY = '@fighttimertv/tv_config';
@@ -46,6 +47,12 @@ function mmss(totalSeconds: number): string {
  */
 export default function TVTimerScreen() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Sem isso, a Android TV/Fire TV pode entrar em daydream/screensaver
+  // sozinha mesmo com o timer contando ativamente — mesmo bug real já
+  // encontrado no canal Roku (ninguém toca no controle durante uma luta
+  // inteira). Mesmo hook já usado na tela de celular (TimerScreen.tsx).
+  useKeepAwake();
 
   // Configuração (tela de setup)
   const [totalRounds, setTotalRounds] = useState(DEFAULT_CONFIG.totalRounds);
