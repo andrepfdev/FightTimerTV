@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
   },
   // Contador maior que o de celular (110) — TV é vista de mais longe.
   bigTimer: {
-    color: YELLOW, fontSize: 200, fontVariant: ['tabular-nums'], letterSpacing: -4,
+    color: YELLOW, fontSize: 240, fontVariant: ['tabular-nums'], letterSpacing: -4,
     fontFamily: 'BebasNeue-Regular',
   },
   bigTimerRest: { color: MUTED },

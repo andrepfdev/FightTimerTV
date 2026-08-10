@@ -1,7 +1,7 @@
 title=CT Timer
 major_version=1
 minor_version=0
-build_version=9
+build_version=10
 
 ; Usa coordenadas 1920x1080 — mais simples de mapear em cima do layout
 ; já desenhado para a página HTML da TV (src/receiver/receiverHtml.ts).

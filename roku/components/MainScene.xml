@@ -46,10 +46,10 @@
         </Label>
 
         <Label id="bigTimer" text="00:00"
-               translation="[0, 360]" width="1920" height="440"
+               translation="[0, 350]" width="1920" height="520"
                horizAlign="center" vertAlign="center"
                color="0x666666FF">
-            <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="380" />
+            <Font role="font" uri="pkg:/fonts/BebasNeue-Regular.ttf" size="460" />
         </Label>
 
         <Rectangle id="progressWrap" translation="[0, 1060]"
