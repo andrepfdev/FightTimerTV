@@ -27,6 +27,7 @@ sub init()
     m.bellAudio = m.top.findNode("bellAudio")
     m.clockTickTimer = m.top.findNode("clockTickTimer")
     m.runHint = m.top.findNode("runHint")
+    m.keepAliveVideo = m.top.findNode("keepAliveVideo")
 
     setupSetupScreen()
 
@@ -39,6 +40,7 @@ sub init()
     m.clockTickTimer.control = "start"
 
     showSetup()
+    startKeepAliveLoop()
 
     ' setFocus() chamado durante a construção da cena (antes de
     ' roSGScreen.show() rodar) falha — confirmado em teste real no canal
@@ -50,6 +52,20 @@ end sub
 
 sub onInitialFocusTimer()
     m.top.setFocus(true)
+end sub
+
+' Toca um áudio silencioso em loop pela vida inteira do app, só pra
+' manter `disableScreenSaver="true"` (campo do node Video, setado no
+' XML) realmente ativo — pela doc oficial, esse campo só tem efeito
+' com conteúdo de verdade tocando ("tipicamente usado com streams
+' só-áudio"), não funciona num node parado/vazio. Tentativa registrada
+' no CLAUDE.md (14ª decisão) — ainda não confirmada em hardware real.
+sub startKeepAliveLoop()
+    content = CreateObject("roSGNode", "ContentNode")
+    content.url = "pkg:/audio/silence_loop.wav"
+    m.keepAliveVideo.loop = true
+    m.keepAliveVideo.content = content
+    m.keepAliveVideo.control = "play"
 end sub
 
 ' ═══════════════ Cronograma local (porta de timerEngine.ts) ═══════════════

@@ -26,6 +26,7 @@ sub init()
     m.pollTask = m.top.findNode("pollTask")
     m.bellAudio = m.top.findNode("bellAudio")
     m.clockTickTimer = m.top.findNode("clockTickTimer")
+    m.keepAliveVideo = m.top.findNode("keepAliveVideo")
 
     ' Nós de Font customizados (size grande) renderizaram como quadrados
     ' vazios ("tofu") em teste real na Roku — confirmado visualmente pelo
@@ -48,6 +49,8 @@ sub init()
         showIpEntry()
     end if
 
+    startKeepAliveLoop()
+
     ' setFocus() chamado durante a construção da cena (antes de
     ' roSGScreen.show() rodar) falha — confirmado em teste real.
     m.initialFocusTimer = m.top.findNode("initialFocusTimer")
@@ -57,6 +60,20 @@ end sub
 
 sub onInitialFocusTimer()
     m.top.setFocus(true)
+end sub
+
+' Toca um áudio silencioso em loop pela vida inteira do app, só pra
+' manter `disableScreenSaver="true"` (campo do node Video, setado no
+' XML) realmente ativo — pela doc oficial, esse campo só tem efeito
+' com conteúdo de verdade tocando ("tipicamente usado com streams
+' só-áudio"), não funciona num node parado/vazio. Tentativa registrada
+' no CLAUDE.md (14ª decisão) — ainda não confirmada em hardware real.
+sub startKeepAliveLoop()
+    content = CreateObject("roSGNode", "ContentNode")
+    content.url = "pkg:/audio/silence_loop.wav"
+    m.keepAliveVideo.loop = true
+    m.keepAliveVideo.content = content
+    m.keepAliveVideo.control = "play"
 end sub
 
 sub startPolling(addr as String)

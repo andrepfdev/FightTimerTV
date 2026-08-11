@@ -592,6 +592,26 @@ conhecidos (pesquisa externa) de desligar sozinha além do
 comportamento padrão da Roku, então pode haver ainda uma terceira
 configuração específica do fabricante não documentada pela Roku.
 
+**Tentativa experimental (mesma sessão, sugerida pelo usuário)**:
+existe um campo real e documentado, `disableScreenSaver` (Boolean), mas
+**só no node `Video`** — não em `Audio` (que é o node que os sinos já
+usam) nem em nenhum node genérico. A doc oficial diz que ele é
+"tipicamente usado pra suprimir o protetor de tela ao tocar streams só-
+áudio", ou seja, provavelmente só tem efeito com conteúdo de verdade
+tocando, não como interruptor solto num node parado. Implementado como
+experimento: um `<Video id="keepAliveVideo" visible="false"
+disableScreenSaver="true" />` em cada `MainScene.xml` (`roku/` e
+`roku-standalone/`), tocando `audio/silence_loop.wav` (3s de silêncio
+puro, PCM 8kHz/8-bit, gerado localmente) **em loop pela vida inteira do
+app** via `startKeepAliveLoop()`, chamada no fim do `init()` de cada
+`MainScene.brs`. Testado só até o ponto de "não crasha, app continua
+respondendo depois do OK" (via ECP) — **ainda não confirmado se
+realmente evita o desligamento/descanso depois de vários minutos**,
+que é o teste que importa de verdade. Se não resolver, reverter (tirar
+o node `Video` e a chamada de `startKeepAliveLoop()`) em vez de tentar
+mais uma variante às cegas — nesse ponto a conclusão da seção acima
+(ajuste é no sistema, não no app) provavelmente é definitiva.
+
 **Nota pra decisão equivalente no APK** (13ª decisão): lá o cenário é
 diferente — `useKeepAwake()` (`@sayem314/react-native-keep-awake`) é
 uma API real e documentada do próprio Android (equivalente a

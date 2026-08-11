@@ -140,6 +140,13 @@
              clareza (som é parte essencial do app). -->
         <Audio id="bellAudio" mute="false" />
 
+        <!-- Video invisível tocando um áudio silencioso em loop
+             enquanto a luta roda, só pra manter `disableScreenSaver`
+             ativo — ver comentário completo em
+             roku-standalone/components/MainScene.xml (mesma tentativa,
+             ainda não confirmada em hardware real). -->
+        <Video id="keepAliveVideo" visible="false" disableScreenSaver="true" />
+
         <!-- setFocus() chamado durante a construção da cena (antes de
              roSGScreen.show() rodar em main.brs) falha silenciosamente —
              confirmado em teste real. Esse Timer adia a primeira (e

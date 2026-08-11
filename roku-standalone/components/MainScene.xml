@@ -139,6 +139,19 @@
              físico da TV. -->
         <Audio id="bellAudio" mute="false" />
 
+        <!-- Video invisível tocando um áudio silencioso em loop pela
+             luta inteira, só pra manter `disableScreenSaver="true"`
+             ativo — não existe API de app pra suprimir o protetor de
+             tela/economia de energia diretamente (ver CLAUDE.md, 14ª
+             decisão); esse campo só existe no node Video e, pela doc
+             oficial, só tem efeito com conteúdo realmente tocando
+             ("tipicamente usado com streams só-áudio"). `visible=false`
+             some com qualquer quadro de vídeo (mesmo sem imagem real,
+             por segurança). Ainda não confirmado em hardware real se
+             de fato evita o desligamento automático — ver comentário
+             no .brs. -->
+        <Video id="keepAliveVideo" visible="false" disableScreenSaver="true" />
+
         <!-- setFocus() chamado durante a construção da cena (antes de
              roSGScreen.show() rodar em main.brs) falha silenciosamente —
              confirmado em teste real no canal com celular. Esse Timer
